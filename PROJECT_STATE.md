@@ -1,8 +1,8 @@
 # Project State — AI Runtime Intelligence OS
 
-Last updated: 2026-08-21
-Phase: Phase 0B — competitive boundary + experimental proof design
-Status: Active
+Last updated: 2026-08-22
+Phase: Phase 0B — competitive boundary + experimental proof preparation
+Status: Active; first benchmark tranche ready for runtime execution
 
 ## Current objective
 
@@ -24,13 +24,18 @@ Determine whether there is a durable commercial and technical opportunity for a 
 - Agent/subagent economics identified as a first-class subsystem.
 - OpenRouter identified as a useful replaceable routing/gateway adapter, not a canonical dependency.
 - Deep research tranches started on context, caching, inference, tools, agents, memory, runtime, and economics.
-- Competitive/adjacent landscape now documented in `research/MARKET_LANDSCAPE.md` and `research/COMPETITOR_MATRIX.md`.
+- Competitive/adjacent landscape documented in `research/MARKET_LANDSCAPE.md` and `research/COMPETITOR_MATRIX.md`.
 - Current competitor finding: observability, evaluation, gateway routing, reliability, budgets and agent/tool governance already exist in adjacent platforms; the project must prove additional value in cross-resource task planning and runtime allocation rather than duplicate that plumbing.
 - Canonical provider-neutral telemetry model defined in `architecture/TELEMETRY_MODEL.md`.
 - Benchmark and baseline experiment design defined in `research/BENCHMARK_AND_BASELINE_SPEC.md`.
-- Experimental harness documentation and machine-readable run schema started under `experiments/`.
-- Initial experimental philosophy: baseline -> isolated intervention -> combined intervention -> quality-preserving evaluation.
-- Control maturity path: Observe -> Explain -> Recommend -> Simulate -> Guardrail -> Auto-optimise.
+- Machine-readable experiment run schema defined in `experiments/RUN_SCHEMA.json`.
+- Concrete benchmark cases B2-001, B3-001, B5-001 and B7-001 defined in `benchmarks/README.md`.
+- Deterministic Python fixtures created for B2-001 and B5-001 under `benchmarks/fixtures/python_runtime_fixture/`.
+- Semantic evaluator rubrics created for B3-001 and B7-001 under `experiments/evaluators/`.
+- First passive baseline tranche documented in `experiments/BASELINE_TRANCHE_01.md` and `experiments/baseline_tranche_01_manifest.json`.
+- Provisional first observation runtime: Claude Code / Claude coding-agent workflow, selected as an experimental starting point because it matches the motivating workload. This is not an architectural dependency or permanent provider decision.
+- Local logic verification confirms the B2/B5 fixtures currently fail their intended acceptance conditions before repair, so they are suitable defect fixtures; this is not a model baseline result.
+- Control maturity path remains: Observe -> Explain -> Recommend -> Simulate -> Guardrail -> Auto-optimise.
 
 ## Current differentiation hypotheses to prove
 
@@ -45,34 +50,39 @@ Determine whether there is a durable commercial and technical opportunity for a 
 
 ## First benchmark tranche
 
-Start with:
-- B2 — small bug fix;
-- B3 — repository research;
-- B5 — debug/test loop;
-- B7 — multi-agent decomposable research.
+Concrete cases:
+- B2-001 — small bug fix: order discount;
+- B3-001 — repository research: cache efficiency vs cognitive/context efficiency;
+- B5-001 — debug/test loop: retry boundary;
+- B7-001 — multi-agent decomposable competitive-boundary research.
 
 Baseline = normal/default runtime execution with passive telemetry only.
 
-First empirical milestone:
+Target repetitions: five per case where economically practical, with exact runtime/model/version and repository snapshot preserved.
+
+No baseline model runs have yet been recorded. The current GitHub-connected environment can prepare and analyse benchmark artifacts but does not expose a local Claude Code process/runtime for running the repetitions.
+
+## First empirical milestone
 
 > On at least two representative workloads, demonstrate material compute/cost or latency reduction while maintaining non-inferior parent-task quality and 100% tested mandatory-rule compliance.
 
 ## Current blockers / unknowns
 
-- Exact telemetry/intervention hooks available across Claude Code, OpenAI/Codex, Gemini and major agent frameworks.
+- Need an execution environment that can run the selected agent/runtime and expose/export enough raw telemetry for normalization.
+- Exact native telemetry fields/hooks available from the chosen runtime need to be verified at execution time.
 - Best practical source for context/instruction composition telemetry where providers expose only aggregate token counts.
 - Whether task relevance and instruction applicability can be estimated reliably enough for safe automation.
 - Whether Useful State Change can be measured consistently across heterogeneous tasks.
 - Whether external control-plane/instrumentation overhead erodes savings.
 - Whether customers will pay for cross-provider runtime optimisation versus provider-native/gateway capabilities.
-- Whether any competitor already performs meaningful task-level multi-resource optimisation; competitor research is incomplete.
+- Whether any competitor already performs meaningful task-level multi-resource optimisation; competitor research remains ongoing.
 
 ## Immediate next work
 
-1. Convert the four benchmark families into concrete reproducible test cases and acceptance criteria.
-2. Select one first runtime/adaptor for passive telemetry only; do not make it foundational.
-3. Determine what telemetry can be collected natively versus through OpenTelemetry/vendor adapters versus a lightweight custom wrapper.
-4. Run baseline experiments before any optimiser intervention.
-5. Continue competitor deep dives into Portkey, LangSmith, AgentOps, RouteLLM, memory/context platforms and AI FinOps.
-6. Update evidence/source registers with all material primary sources and record unknowns explicitly.
+1. Execute untouched baseline cycles for B2-001/B3-001/B5-001/B7-001 in a runtime-capable environment.
+2. Preserve raw transcript/trace, provider usage, tool calls, test outputs, diffs and evaluator results for each run.
+3. Normalize each run into `experiments/RUN_SCHEMA.json`, leaving genuinely unavailable fields null rather than inferring them.
+4. Analyse variance and telemetry gaps before creating any optimizer intervention.
+5. Repeat at least a subset of baselines on a materially different runtime/provider before making cross-provider claims.
+6. Continue competitor deep dives into Portkey, LangSmith, AgentOps, RouteLLM, memory/context platforms and AI FinOps.
 7. Do not build a production control plane until measured baseline/intervention evidence supports it.
