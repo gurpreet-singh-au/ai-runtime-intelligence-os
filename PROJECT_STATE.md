@@ -1,7 +1,7 @@
 # Project State — AI Runtime Intelligence OS
 
 Last updated: 2026-08-21
-Phase: Phase 0 — deep research and opportunity validation
+Phase: Phase 0B — competitive boundary + experimental proof design
 Status: Active
 
 ## Current objective
@@ -24,31 +24,55 @@ Determine whether there is a durable commercial and technical opportunity for a 
 - Agent/subagent economics identified as a first-class subsystem.
 - OpenRouter identified as a useful replaceable routing/gateway adapter, not a canonical dependency.
 - Deep research tranches started on context, caching, inference, tools, agents, memory, runtime, and economics.
+- Competitive/adjacent landscape now documented in `research/MARKET_LANDSCAPE.md` and `research/COMPETITOR_MATRIX.md`.
+- Current competitor finding: observability, evaluation, gateway routing, reliability, budgets and agent/tool governance already exist in adjacent platforms; the project must prove additional value in cross-resource task planning and runtime allocation rather than duplicate that plumbing.
+- Canonical provider-neutral telemetry model defined in `architecture/TELEMETRY_MODEL.md`.
+- Benchmark and baseline experiment design defined in `research/BENCHMARK_AND_BASELINE_SPEC.md`.
+- Experimental harness documentation and machine-readable run schema started under `experiments/`.
 - Initial experimental philosophy: baseline -> isolated intervention -> combined intervention -> quality-preserving evaluation.
 - Control maturity path: Observe -> Explain -> Recommend -> Simulate -> Guardrail -> Auto-optimise.
 
-## Current hypotheses
+## Current differentiation hypotheses to prove
 
-1. Long-running AI systems materially waste compute through oversized/stale context, over-broad instructions, repeated tool output, redundant agents, inappropriate model choice, and low-value runtime loops.
-2. Provider-native features solve mechanisms but leave room for cross-provider intelligence that decides when/how to use those mechanisms.
-3. Capability- and evaluation-driven routing can reduce cost without reducing successful parent-task outcomes.
-4. Instruction compilation can reduce context load while preserving mandatory semantics and governance.
-5. Marginal Compute Utility can become a useful decision abstraction for additional context, agents, searches, reasoning, and verification.
-6. The first commercial wedge may be runtime observability/advisory for coding agents and long-running agent systems, but this remains unvalidated.
+1. Task Resource Profiling can estimate useful resource requirements before execution.
+2. Instruction Applicability Compilation can reduce instruction load without governance regression.
+3. Context Utility Allocation can reduce stale/duplicate context while preserving evidence and outcome quality.
+4. Agent Spawn Economics can decide whether another subagent is justified before paying for it.
+5. Marginal Compute Utility can compare the value of additional context, reasoning, agents, searches, tools and verification.
+6. Useful State Change / Loop Intelligence can identify low-progress runtime trajectories earlier than generic tracing alone.
+7. Execution Counterfactuals can identify which resources contributed materially to success.
+8. Outcome-Conditioned Policy Learning can learn task fingerprint -> execution strategy mappings across providers and runtimes.
+
+## First benchmark tranche
+
+Start with:
+- B2 — small bug fix;
+- B3 — repository research;
+- B5 — debug/test loop;
+- B7 — multi-agent decomposable research.
+
+Baseline = normal/default runtime execution with passive telemetry only.
+
+First empirical milestone:
+
+> On at least two representative workloads, demonstrate material compute/cost or latency reduction while maintaining non-inferior parent-task quality and 100% tested mandatory-rule compliance.
 
 ## Current blockers / unknowns
 
 - Exact telemetry/intervention hooks available across Claude Code, OpenAI/Codex, Gemini and major agent frameworks.
+- Best practical source for context/instruction composition telemetry where providers expose only aggregate token counts.
 - Whether task relevance and instruction applicability can be estimated reliably enough for safe automation.
-- Whether external control-plane overhead erodes savings.
-- Whether customers will pay for cross-provider runtime optimisation versus provider-native capabilities.
-- Best first workload for reproducible experiments.
+- Whether Useful State Change can be measured consistently across heterogeneous tasks.
+- Whether external control-plane/instrumentation overhead erodes savings.
+- Whether customers will pay for cross-provider runtime optimisation versus provider-native/gateway capabilities.
+- Whether any competitor already performs meaningful task-level multi-resource optimisation; competitor research is incomplete.
 
 ## Immediate next work
 
-1. Complete market/competitor landscape from primary sources.
-2. Define telemetry schema and minimum viable instrumentation.
-3. Define representative benchmark task set.
-4. Establish baseline metrics for context, agents, tools, cost, latency, quality, and outcome.
-5. Design first advisory-only prototype experiment.
-6. Maintain continuity and update this file after substantive work.
+1. Convert the four benchmark families into concrete reproducible test cases and acceptance criteria.
+2. Select one first runtime/adaptor for passive telemetry only; do not make it foundational.
+3. Determine what telemetry can be collected natively versus through OpenTelemetry/vendor adapters versus a lightweight custom wrapper.
+4. Run baseline experiments before any optimiser intervention.
+5. Continue competitor deep dives into Portkey, LangSmith, AgentOps, RouteLLM, memory/context platforms and AI FinOps.
+6. Update evidence/source registers with all material primary sources and record unknowns explicitly.
+7. Do not build a production control plane until measured baseline/intervention evidence supports it.
