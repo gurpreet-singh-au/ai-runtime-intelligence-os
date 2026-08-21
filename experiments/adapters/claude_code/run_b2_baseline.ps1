@@ -10,6 +10,17 @@ function Require-Command([string]$Name) {
     }
 }
 
+function Run-PytestCapture([string]$OutputPath) {
+    # Do not use try/catch for native process exit codes. Windows PowerShell 5.1
+    # does not consistently turn a non-zero native exit code into a catchable
+    # exception, and stream redirection behaviour can vary by host. Capture the
+    # combined textual output explicitly and record $LASTEXITCODE.
+    $Output = & python -m pytest tests/test_pricing.py -q 2>&1
+    $ExitCode = $LASTEXITCODE
+    @($Output) | Out-File -Encoding utf8 $OutputPath
+    return [int]$ExitCode
+}
+
 Require-Command "git"
 Require-Command "python"
 Require-Command "claude"
@@ -65,11 +76,7 @@ try {
     }
     $Metadata | ConvertTo-Json -Depth 8 | Out-File -Encoding utf8 (Join-Path $Artifacts "RUN_METADATA.json")
 
-    try {
-        python -m pytest tests/test_pricing.py -q *>&1 | Tee-Object -FilePath (Join-Path $Artifacts "tests-before.txt")
-    } catch {
-        # A failing pre-run test is expected for this benchmark. Preserve output and continue.
-    }
+    $TestsBeforeExit = Run-PytestCapture (Join-Path $Artifacts "tests-before.txt")
 
     $Prompt = Get-Content -Raw $PromptPath
     $StreamPath = Join-Path $Artifacts "claude-stream.jsonl"
@@ -81,13 +88,7 @@ try {
     $ClaudeExit = $LASTEXITCODE
 
     $EndedAt = [DateTimeOffset]::Now
-
-    try {
-        python -m pytest tests/test_pricing.py -q *>&1 | Tee-Object -FilePath (Join-Path $Artifacts "tests-after.txt")
-        $TestsAfterExit = 0
-    } catch {
-        $TestsAfterExit = 1
-    }
+    $TestsAfterExit = Run-PytestCapture (Join-Path $Artifacts "tests-after.txt")
 
     git status --short | Out-File -Encoding utf8 (Join-Path $Artifacts "git-after.txt")
     git diff --binary | Out-File -Encoding utf8 (Join-Path $Artifacts "git-diff.patch")
@@ -95,6 +96,7 @@ try {
     $Metadata.ended_at = $EndedAt.ToString("o")
     $Metadata.duration_ms = [int64](($EndedAt - $StartedAt).TotalMilliseconds)
     $Metadata.claude_exit_code = $ClaudeExit
+    $Metadata.tests_before_exit_code = $TestsBeforeExit
     $Metadata.tests_after_exit_code = $TestsAfterExit
     $Metadata | ConvertTo-Json -Depth 8 | Out-File -Encoding utf8 (Join-Path $Artifacts "RUN_METADATA.json")
 
@@ -108,7 +110,7 @@ try {
     Write-Host "Artifacts: $Artifacts"
     Write-Host "Normalization: normalized-run.json"
     Write-Host "Telemetry audit: TELEMETRY_COMPLETENESS.json"
-    Write-Host "STOP HERE before r02-r05. Audit telemetry completeness first."
+    Write-Host "STOP HERE before further repetitions. Audit telemetry completeness first."
 }
 finally {
     Pop-Location
