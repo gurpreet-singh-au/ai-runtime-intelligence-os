@@ -2,7 +2,7 @@
 
 Last updated: 2026-08-22
 Phase: Phase 0B — competitive boundary + experimental proof preparation
-Status: Active; first benchmark tranche ready for runtime execution
+Status: Active; first benchmark tranche and normalization pipeline ready for runtime execution
 
 ## Current objective
 
@@ -34,6 +34,10 @@ Determine whether there is a durable commercial and technical opportunity for a 
 - Semantic evaluator rubrics created for B3-001 and B7-001 under `experiments/evaluators/`.
 - First passive baseline tranche documented in `experiments/BASELINE_TRANCHE_01.md` and `experiments/baseline_tranche_01_manifest.json`.
 - Provisional first observation runtime: Claude Code / Claude coding-agent workflow, selected as an experimental starting point because it matches the motivating workload. This is not an architectural dependency or permanent provider decision.
+- Claude Code passive-observation harness created under `experiments/adapters/claude_code/`.
+- A conservative normalization pipeline now converts raw Claude run artifacts into provider-neutral `normalized-run.json` plus `TELEMETRY_COMPLETENESS.json` without turning missing telemetry into zero.
+- Normalizer tests assert preservation of UNKNOWN fields and prevent model self-claims from being treated as deterministic task success.
+- `experiments/TELEMETRY_GAP_DECISION_PROTOCOL.md` now governs whether r01 can proceed to repetitions or requires native OpenTelemetry, a gateway/proxy, an SDK harness, or a different runtime.
 - Local logic verification confirms the B2/B5 fixtures currently fail their intended acceptance conditions before repair, so they are suitable defect fixtures; this is not a model baseline result.
 - Control maturity path remains: Observe -> Explain -> Recommend -> Simulate -> Guardrail -> Auto-optimise.
 
@@ -60,7 +64,7 @@ Baseline = normal/default runtime execution with passive telemetry only.
 
 Target repetitions: five per case where economically practical, with exact runtime/model/version and repository snapshot preserved.
 
-No baseline model runs have yet been recorded. The current GitHub-connected environment can prepare and analyse benchmark artifacts but does not expose a local Claude Code process/runtime for running the repetitions.
+No baseline model runs have yet been recorded. The current GitHub-connected environment can prepare and analyse benchmark artifacts but does not expose the user's locally authenticated Claude Code process/runtime for running the repetitions.
 
 ## First empirical milestone
 
@@ -69,7 +73,7 @@ No baseline model runs have yet been recorded. The current GitHub-connected envi
 ## Current blockers / unknowns
 
 - Need an execution environment that can run the selected agent/runtime and expose/export enough raw telemetry for normalization.
-- Exact native telemetry fields/hooks available from the chosen runtime need to be verified at execution time.
+- Exact native telemetry fields/hooks available from the chosen runtime must be verified against the first actual captured stream rather than assumed.
 - Best practical source for context/instruction composition telemetry where providers expose only aggregate token counts.
 - Whether task relevance and instruction applicability can be estimated reliably enough for safe automation.
 - Whether Useful State Change can be measured consistently across heterogeneous tasks.
@@ -79,10 +83,11 @@ No baseline model runs have yet been recorded. The current GitHub-connected envi
 
 ## Immediate next work
 
-1. Execute untouched baseline cycles for B2-001/B3-001/B5-001/B7-001 in a runtime-capable environment.
-2. Preserve raw transcript/trace, provider usage, tool calls, test outputs, diffs and evaluator results for each run.
-3. Normalize each run into `experiments/RUN_SCHEMA.json`, leaving genuinely unavailable fields null rather than inferring them.
-4. Analyse variance and telemetry gaps before creating any optimizer intervention.
-5. Repeat at least a subset of baselines on a materially different runtime/provider before making cross-provider claims.
-6. Continue competitor deep dives into Portkey, LangSmith, AgentOps, RouteLLM, memory/context platforms and AI FinOps.
-7. Do not build a production control plane until measured baseline/intervention evidence supports it.
+1. Execute `B2-001-baseline-r01` in the user's runtime-capable Claude Code environment using the frozen runner.
+2. Preserve raw transcript/trace, provider usage, tool calls, test outputs, diffs and runtime metadata.
+3. Let the runner produce `normalized-run.json` and `TELEMETRY_COMPLETENESS.json` automatically.
+4. Apply `experiments/TELEMETRY_GAP_DECISION_PROTOCOL.md` before running r02-r05.
+5. If native CLI evidence is insufficient, choose the smallest next observation layer: native OpenTelemetry -> observation-only gateway/proxy -> thin SDK harness -> alternate runtime.
+6. Only after a stable baseline configuration exists, collect repetitions and quantify variance.
+7. Continue competitor deep dives into Portkey, LangSmith, AgentOps, RouteLLM, memory/context platforms and AI FinOps.
+8. Do not build a production control plane until measured baseline/intervention evidence supports it.
