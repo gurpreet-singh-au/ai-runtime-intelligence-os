@@ -6,6 +6,9 @@ provider-neutral `normalized-run.json` plus a telemetry completeness report.
 
 Design rule: never convert unavailable evidence into zero. Every extracted
 field carries an evidence class: OBSERVED, DERIVED, INFERRED, or UNKNOWN.
+
+Windows PowerShell 5.1 may write redirected native-process output as UTF-16 and
+JSON files with a UTF-8 BOM, so artifact readers detect common encodings.
 """
 
 from __future__ import annotations
@@ -20,11 +23,28 @@ from typing import Any
 EVIDENCE_LEVELS = {"OBSERVED", "DERIVED", "INFERRED", "UNKNOWN"}
 
 
+def read_text_portable(path: Path) -> str:
+    raw = path.read_bytes()
+    if raw.startswith(b"\xff\xfe") or raw.startswith(b"\xfe\xff"):
+        return raw.decode("utf-16")
+    if raw.startswith(b"\xef\xbb\xbf"):
+        return raw.decode("utf-8-sig")
+    if raw and raw.count(b"\x00") > len(raw) // 10:
+        try:
+            return raw.decode("utf-16-le")
+        except UnicodeDecodeError:
+            pass
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("utf-8", errors="replace")
+
+
 def load_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(read_text_portable(path).lstrip("\ufeff"))
         return data if isinstance(data, dict) else {}
     except (json.JSONDecodeError, OSError):
         return {}
@@ -34,8 +54,8 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
     events: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-        line = line.strip()
+    for line in read_text_portable(path).splitlines():
+        line = line.strip().lstrip("\ufeff")
         if not line:
             continue
         try:
@@ -63,10 +83,6 @@ def find_result_event(events: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def recursive_usage_totals(value: Any) -> dict[str, int]:
-    """Sum only explicitly named token counters from nested stream objects.
-
-    This is intentionally conservative. Unknown vendor fields are ignored.
-    """
     totals = {"input_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0, "output_tokens": 0}
     seen = {key: False for key in totals}
 
@@ -131,11 +147,15 @@ def normalize(run_dir: Path) -> tuple[dict[str, Any], dict[str, Any]]:
             duration_ms = max(0, int((end_dt - start_dt).total_seconds() * 1000))
             duration_source = "RUN_METADATA.json timestamps"
             duration_level = "DERIVED"
+        elif isinstance(metadata.get("duration_ms"), (int, float)):
+            duration_ms = int(metadata["duration_ms"])
+            duration_source = "RUN_METADATA.json:duration_ms"
+            duration_level = "OBSERVED"
 
     total_cost = result.get("total_cost_usd")
     cost_level = "OBSERVED" if isinstance(total_cost, (int, float)) else "UNKNOWN"
 
-    run_id = metadata.get("run_id") or metadata.get("runId") or run_dir.name
+    run_id = metadata.get("run_id") or metadata.get("runId") or run_dir.parent.name or run_dir.name
     benchmark_id = metadata.get("benchmark_id") or metadata.get("benchmarkId") or "B2-001"
 
     normalized = {
