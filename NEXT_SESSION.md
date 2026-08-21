@@ -1,6 +1,6 @@
 # Next Session — AI Runtime Intelligence OS
 
-Last updated: 2026-08-21
+Last updated: 2026-08-22
 
 ## Read first
 
@@ -14,46 +14,70 @@ Last updated: 2026-08-21
 8. `research/MARKET_LANDSCAPE.md`
 9. `research/COMPETITOR_MATRIX.md`
 10. `research/BENCHMARK_AND_BASELINE_SPEC.md`
-11. `research/EXPERIMENT_PROGRAM.md`
-12. `research/OPENROUTER_AND_MODEL_ROUTING.md`
-13. `experiments/README.md`
+11. `benchmarks/README.md`
+12. `experiments/BASELINE_TRANCHE_01.md`
+13. `experiments/baseline_tranche_01_manifest.json`
 14. `experiments/RUN_SCHEMA.json`
-15. `research/SOURCE_REGISTER.md`
+15. `experiments/evaluators/B3_001_RUBRIC.md`
+16. `experiments/evaluators/B7_001_RUBRIC.md`
+17. `research/SOURCE_REGISTER.md`
 
 Also consult the pinned central framework `gurpreet-singh-au/ai-project-framework` v1.0.0 at commit `8128f2d9b91cec1ec2e9f73833be32cbf01cfdf2` when material governance questions arise.
 
 ## Current phase
 
-Phase 0B — competitive boundary + experimental proof design. Do not start production implementation.
+Phase 0B — competitive boundary + experimental proof preparation. Do not start production implementation.
 
 ## Work completed in current tranche
 
 - primary-source market landscape started;
 - competitor/adjacent capability matrix created;
 - canonical provider-neutral telemetry model defined;
-- first benchmark and baseline specification defined;
-- first experiment harness directory and machine-readable run schema created;
-- project state advanced from general research into falsifiable experimental preparation.
+- benchmark/baseline specification defined;
+- B2-001/B3-001/B5-001/B7-001 converted into concrete reproducible cases;
+- deterministic defect fixtures created for B2/B5;
+- frozen semantic rubrics created for B3/B7;
+- baseline manifest and passive-observation execution plan created;
+- Claude Code / Claude coding-agent workflow selected provisionally as first observation runtime only, not as an architecture dependency;
+- benchmark fixture logic checked to confirm B2/B5 fail their intended pre-fix conditions;
+- no baseline model run has been claimed yet.
 
-## Next highest-value actions
+## Next highest-value action
 
-1. Turn B2/B3/B5/B7 into concrete benchmark cases with fixed snapshots, acceptance criteria and deterministic evaluators where possible.
-2. Choose the **first passive-observation runtime adapter** based on telemetry access and reproducibility, not vendor preference.
-3. Build only the minimum instrumentation required to populate `experiments/RUN_SCHEMA.json`; prefer OTel/native/vendor telemetry before custom collection.
-4. Run untouched baseline repetitions before testing any intervention.
-5. Calculate variance and refine repetition/sample-size requirements.
-6. Then run isolated interventions in this order where practical:
-   - context selection;
-   - instruction compilation;
-   - tool-result externalisation;
-   - agent-count optimisation;
-   - subagent model routing;
-   - deterministic substitution;
-   - loop/no-progress advisory;
-   - model/reasoning routing;
-   - verification allocation.
-7. Continue competitor deep dives, especially Portkey and any product claiming adaptive runtime optimisation.
-8. Update `PROJECT_STATE.md`, `DECISIONS.md`, `OPEN_QUESTIONS.md`, `CHANGELOG.md`, evaluation/model/open-source registers and source register after each material tranche.
+Execute the first untouched baseline cycle in a runtime-capable environment:
+
+1. B2-001 baseline r01
+2. B3-001 baseline r01
+3. B5-001 baseline r01
+4. B7-001 baseline r01
+
+For each run preserve:
+- exact repository commit/snapshot;
+- runtime/provider/model/version;
+- raw transcript/trace where available;
+- token/cache/cost usage where available;
+- agent/subagent events;
+- tool/search/file/test events;
+- changed-file diff for coding tasks;
+- test/evaluator result;
+- normalized `RUN_SCHEMA.json` record.
+
+Unknown telemetry fields stay null. Do not invent relevance, causal contribution or hidden model internals.
+
+After r01 across all four cases, inspect telemetry completeness before spending on r02-r05. If the first runtime cannot expose sufficient evidence, revise the observation adapter rather than pretending the missing data exists.
+
+## After stable baselines
+
+Only then begin isolated interventions:
+- context selection;
+- instruction compilation;
+- tool-result externalisation;
+- agent-count optimisation;
+- subagent model routing;
+- deterministic substitution;
+- loop/no-progress advisory;
+- model/reasoning routing;
+- verification allocation.
 
 ## First empirical gate
 
@@ -69,7 +93,3 @@ Do not claim the thesis is validated until at least two representative workloads
 - Do not optimise away mandatory safety/governance instructions.
 - Do not assume more subagents improve quality.
 - Do not infer causality from trace correlation alone.
-
-## Immediate research/engineering question
-
-What is the smallest passive instrumentation layer that can reconstruct a representative agent run as a provider-neutral resource graph with enough outcome evidence to test whether a proposed runtime intervention actually helped?
