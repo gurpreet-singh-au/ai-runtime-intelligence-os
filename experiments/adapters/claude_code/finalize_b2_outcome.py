@@ -49,9 +49,14 @@ def changed_paths(diff_text: str) -> list[str]:
     paths: list[str] = []
     for line in diff_text.splitlines():
         if line.startswith("diff --git a/"):
+            # Unified git diff header shape is:
+            #   diff --git a/<path> b/<path>
+            # split() therefore yields four fields, with the destination path
+            # at index 3. The earlier parser incorrectly inspected index 2,
+            # causing valid diffs to be reported with an empty changed_paths list.
             parts = line.split()
-            if len(parts) >= 3 and parts[2].startswith("b/"):
-                paths.append(parts[2][2:])
+            if len(parts) >= 4 and parts[3].startswith("b/"):
+                paths.append(parts[3][2:])
     return paths
 
 
@@ -85,7 +90,7 @@ def main() -> int:
         "benchmark_id": metadata.get("benchmark_id"),
         "run_id": metadata.get("run_id"),
         "evaluator_id": "B2-001-deterministic-tests-and-diff-v1",
-        "evaluator_version": "1",
+        "evaluator_version": "1.1",
         "success": success,
         "mandatory_compliance": success,
         "checks": checks,
