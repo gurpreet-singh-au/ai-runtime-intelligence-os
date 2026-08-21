@@ -10,28 +10,27 @@ function Require-Command([string]$Name) {
     }
 }
 
-function Run-PytestCapture([string]$OutputPath) {
-    # Do not use try/catch for native process exit codes. Windows PowerShell 5.1
-    # does not consistently turn a non-zero native exit code into a catchable
-    # exception, and stream redirection behaviour can vary by host. Capture the
-    # combined textual output explicitly and record $LASTEXITCODE.
-    $Output = & python -m pytest tests/test_pricing.py -q 2>&1
+function Run-PytestCapture([string]$PythonExe, [string]$OutputPath) {
+    $Output = & $PythonExe -m pytest tests/test_pricing.py -q 2>&1
     $ExitCode = $LASTEXITCODE
     @($Output) | Out-File -Encoding utf8 $OutputPath
     return [int]$ExitCode
 }
 
 Require-Command "git"
-Require-Command "python"
+Require-Command "py"
 Require-Command "claude"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = (Resolve-Path (Join-Path $ScriptDir "../../..")).Path
 $FixtureSource = Join-Path $RepoRoot "benchmarks/fixtures/python_runtime_fixture"
 $PromptPath = Join-Path $RepoRoot "benchmarks/prompts/B2-001-baseline.md"
+$RequirementsPath = Join-Path $ScriptDir "benchmark-requirements.txt"
 $RunRoot = Join-Path $RepoRoot "experiments/local-runs/$RunId"
 $Workspace = Join-Path $RunRoot "workspace"
 $Artifacts = Join-Path $RunRoot "artifacts"
+$Venv = Join-Path $RunRoot ".venv"
+$VenvPython = Join-Path $Venv "Scripts/python.exe"
 
 if (Test-Path $RunRoot) {
     throw "Run directory already exists: $RunRoot. Use a new RunId or archive/remove the prior local run."
@@ -42,6 +41,17 @@ New-Item -ItemType Directory -Force -Path $Artifacts | Out-Null
 
 Copy-Item -Path (Join-Path $FixtureSource "*") -Destination $Workspace -Recurse -Force
 Copy-Item -Path $PromptPath -Destination (Join-Path $Artifacts "TASK_PROMPT.md")
+
+# Build a benchmark-local Python environment so unrelated agent/tool virtual environments
+# on PATH (for example Hermes) cannot affect benchmark validity.
+& py -3.11 -m venv $Venv
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path $VenvPython)) {
+    throw "Failed to create benchmark virtual environment at $Venv"
+}
+& $VenvPython -m pip install --disable-pip-version-check -q -r $RequirementsPath
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to install benchmark test dependencies from $RequirementsPath"
+}
 
 Push-Location $Workspace
 try {
@@ -55,7 +65,8 @@ try {
     $GitBefore | Out-File -Encoding utf8 (Join-Path $Artifacts "git-before.txt")
 
     $ClaudeVersion = (& claude --version 2>&1 | Out-String).Trim()
-    $PythonVersion = (& python --version 2>&1 | Out-String).Trim()
+    $PythonVersion = (& $VenvPython --version 2>&1 | Out-String).Trim()
+    $PytestVersion = (& $VenvPython -m pytest --version 2>&1 | Out-String).Trim()
     $StartedAt = [DateTimeOffset]::Now
 
     $Metadata = [ordered]@{
@@ -71,24 +82,33 @@ try {
         runtime = "Claude Code"
         runtime_version = $ClaudeVersion
         python_version = $PythonVersion
+        pytest_version = $PytestVersion
+        python_environment = "benchmark-local-venv"
         observation_mode = "passive-cli-stream-json"
         note = "No Runtime Intelligence intervention. Unknown telemetry fields remain unknown rather than zero."
     }
     $Metadata | ConvertTo-Json -Depth 8 | Out-File -Encoding utf8 (Join-Path $Artifacts "RUN_METADATA.json")
 
-    $TestsBeforeExit = Run-PytestCapture (Join-Path $Artifacts "tests-before.txt")
+    $TestsBeforeExit = Run-PytestCapture $VenvPython (Join-Path $Artifacts "tests-before.txt")
 
     $Prompt = Get-Content -Raw $PromptPath
     $StreamPath = Join-Path $Artifacts "claude-stream.jsonl"
     $StderrPath = Join-Path $Artifacts "claude-stderr.log"
 
-    # Keep the Claude execution policy at its normal baseline. The flags below only request
-    # non-interactive, machine-readable observation output.
-    & claude -p $Prompt --output-format stream-json --verbose 1> $StreamPath 2> $StderrPath
-    $ClaudeExit = $LASTEXITCODE
+    # Prepend the benchmark venv Scripts directory only for the Claude subprocess so that
+    # when Claude invokes `python` or `pytest`, it sees the same controlled environment.
+    $OriginalPath = $env:PATH
+    $env:PATH = (Join-Path $Venv "Scripts") + ";" + $OriginalPath
+    try {
+        & claude -p $Prompt --output-format stream-json --verbose 1> $StreamPath 2> $StderrPath
+        $ClaudeExit = $LASTEXITCODE
+    }
+    finally {
+        $env:PATH = $OriginalPath
+    }
 
     $EndedAt = [DateTimeOffset]::Now
-    $TestsAfterExit = Run-PytestCapture (Join-Path $Artifacts "tests-after.txt")
+    $TestsAfterExit = Run-PytestCapture $VenvPython (Join-Path $Artifacts "tests-after.txt")
 
     git status --short | Out-File -Encoding utf8 (Join-Path $Artifacts "git-after.txt")
     git diff --binary | Out-File -Encoding utf8 (Join-Path $Artifacts "git-diff.patch")
@@ -101,10 +121,10 @@ try {
     $Metadata | ConvertTo-Json -Depth 8 | Out-File -Encoding utf8 (Join-Path $Artifacts "RUN_METADATA.json")
 
     $InventoryScript = Join-Path $ScriptDir "inventory_stream.py"
-    python $InventoryScript $StreamPath (Join-Path $Artifacts "STREAM_INVENTORY.json")
+    & $VenvPython $InventoryScript $StreamPath (Join-Path $Artifacts "STREAM_INVENTORY.json")
 
     $NormalizerScript = Join-Path $ScriptDir "normalize_claude_run.py"
-    python $NormalizerScript $Artifacts
+    & $VenvPython $NormalizerScript $Artifacts
 
     Write-Host "Baseline capture complete: $RunId"
     Write-Host "Artifacts: $Artifacts"
