@@ -9,6 +9,11 @@ field carries an evidence class: OBSERVED, DERIVED, INFERRED, or UNKNOWN.
 
 Windows PowerShell 5.1 may write redirected native-process output as UTF-16 and
 JSON files with a UTF-8 BOM, so artifact readers detect common encodings.
+
+Usage extraction deliberately prefers the final result event's `modelUsage`
+summary when present. That object is a per-model run summary and avoids the
+recursive double counting that occurs when message-level usage, result-level
+usage and iteration-level usage are all summed together.
 """
 
 from __future__ import annotations
@@ -82,24 +87,66 @@ def find_result_event(events: list[dict[str, Any]]) -> dict[str, Any]:
     return {}
 
 
-def recursive_usage_totals(value: Any) -> dict[str, int]:
-    totals = {"input_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0, "output_tokens": 0}
-    seen = {key: False for key in totals}
+def _number(value: Any) -> int | None:
+    if isinstance(value, (int, float)) and value >= 0:
+        return int(value)
+    return None
 
-    def walk(node: Any) -> None:
-        if isinstance(node, dict):
-            for key, child in node.items():
-                if key in totals and isinstance(child, (int, float)) and child >= 0:
-                    totals[key] += int(child)
-                    seen[key] = True
-                else:
-                    walk(child)
-        elif isinstance(node, list):
-            for child in node:
-                walk(child)
 
-    walk(value)
-    return {key: val for key, val in totals.items() if seen[key]}
+def extract_result_usage(result: dict[str, Any]) -> tuple[dict[str, int], dict[str, Any], str]:
+    """Extract non-overlapping run usage from the final result event.
+
+    Priority:
+    1. `modelUsage`: sum each model's final aggregate exactly once. This captures
+       helper/secondary model activity without counting the same message usage again.
+    2. top-level `usage`: use the final aggregate once when modelUsage is absent.
+    3. no aggregate: return empty and leave usage UNKNOWN rather than invent totals.
+    """
+    model_usage = result.get("modelUsage")
+    if isinstance(model_usage, dict) and model_usage:
+        totals = {
+            "input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "output_tokens": 0,
+        }
+        models: dict[str, Any] = {}
+        seen_any = False
+        for model_name, raw in model_usage.items():
+            if not isinstance(raw, dict):
+                continue
+            mapped = {
+                "input_tokens": _number(raw.get("inputTokens")),
+                "cache_read_input_tokens": _number(raw.get("cacheReadInputTokens")),
+                "cache_creation_input_tokens": _number(raw.get("cacheCreationInputTokens")),
+                "output_tokens": _number(raw.get("outputTokens")),
+                "cost_usd": raw.get("costUSD") if isinstance(raw.get("costUSD"), (int, float)) else None,
+                "context_window": _number(raw.get("contextWindow")),
+                "max_output_tokens": _number(raw.get("maxOutputTokens")),
+                "canonical_model": raw.get("canonicalModel"),
+                "provider": raw.get("provider"),
+            }
+            models[str(model_name)] = mapped
+            for key in totals:
+                value = mapped.get(key)
+                if value is not None:
+                    totals[key] += int(value)
+                    seen_any = True
+        return (totals if seen_any else {}), models, "claude-stream.jsonl:result.modelUsage"
+
+    usage = result.get("usage")
+    if isinstance(usage, dict):
+        mapped = {
+            "input_tokens": _number(usage.get("input_tokens")),
+            "cache_read_input_tokens": _number(usage.get("cache_read_input_tokens")),
+            "cache_creation_input_tokens": _number(usage.get("cache_creation_input_tokens")),
+            "output_tokens": _number(usage.get("output_tokens")),
+        }
+        totals = {key: value for key, value in mapped.items() if value is not None}
+        if totals:
+            return totals, {}, "claude-stream.jsonl:result.usage"
+
+    return {}, {}, ""
 
 
 def detect_tool_events(events: list[dict[str, Any]]) -> tuple[int | None, list[str]]:
@@ -128,7 +175,7 @@ def normalize(run_dir: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     metadata = load_json(run_dir / "RUN_METADATA.json")
     events = load_jsonl(run_dir / "claude-stream.jsonl")
     result = find_result_event(events)
-    usage = recursive_usage_totals(events)
+    usage, per_model_usage, usage_source = extract_result_usage(result)
     tool_count, tool_names = detect_tool_events(events)
 
     started = metadata.get("started_at") or metadata.get("startedAt")
@@ -157,6 +204,7 @@ def normalize(run_dir: Path) -> tuple[dict[str, Any], dict[str, Any]]:
 
     run_id = metadata.get("run_id") or metadata.get("runId") or run_dir.parent.name or run_dir.name
     benchmark_id = metadata.get("benchmark_id") or metadata.get("benchmarkId") or "B2-001"
+    model_names = list(per_model_usage.keys())
 
     normalized = {
         "schema_version": "0.1",
@@ -171,13 +219,16 @@ def normalize(run_dir: Path) -> tuple[dict[str, Any], dict[str, Any]]:
             "task_snapshot": metadata.get("task_snapshot") or metadata.get("repository_commit") or "unknown",
             "repository_commit": metadata.get("repository_commit"),
             "provider": metadata.get("provider") or "Anthropic",
-            "model": result.get("model") or metadata.get("model"),
+            "model": result.get("model") or (model_names[0] if len(model_names) == 1 else None),
+            "models_observed": model_names,
+            "per_model_usage": per_model_usage,
             "model_version": metadata.get("model_version"),
             "reasoning_effort": metadata.get("reasoning_effort"),
         },
         "resources": {
             "input_tokens": usage.get("input_tokens"),
             "cached_input_tokens": usage.get("cache_read_input_tokens"),
+            "cache_creation_input_tokens": usage.get("cache_creation_input_tokens"),
             "output_tokens": usage.get("output_tokens"),
             "reasoning_tokens_or_units": None,
             "context_peak_tokens": None,
@@ -215,16 +266,17 @@ def normalize(run_dir: Path) -> tuple[dict[str, Any], dict[str, Any]]:
             "residual_risk": None,
             "evaluator_id": "B2-001-deterministic-tests-v1",
             "evaluator_version": "1",
-            "notes": "Outcome must be finalized from tests-after.txt; normalizer does not infer deterministic success from model output.",
+            "notes": "Outcome must be finalized from deterministic benchmark tests; model output is not treated as proof of success.",
         },
         "interventions": [],
         "evidence_refs": [name for name in ["RUN_METADATA.json", "claude-stream.jsonl", "tests-after.txt", "git-diff.patch"] if (run_dir / name).exists()],
     }
 
     field_evidence = {
-        "resources.input_tokens": evidence(normalized["resources"]["input_tokens"], "OBSERVED" if "input_tokens" in usage else "UNKNOWN", "claude-stream.jsonl" if "input_tokens" in usage else None),
-        "resources.cached_input_tokens": evidence(normalized["resources"]["cached_input_tokens"], "OBSERVED" if "cache_read_input_tokens" in usage else "UNKNOWN", "claude-stream.jsonl" if "cache_read_input_tokens" in usage else None),
-        "resources.output_tokens": evidence(normalized["resources"]["output_tokens"], "OBSERVED" if "output_tokens" in usage else "UNKNOWN", "claude-stream.jsonl" if "output_tokens" in usage else None),
+        "resources.input_tokens": evidence(normalized["resources"]["input_tokens"], "OBSERVED" if "input_tokens" in usage else "UNKNOWN", usage_source or None),
+        "resources.cached_input_tokens": evidence(normalized["resources"]["cached_input_tokens"], "OBSERVED" if "cache_read_input_tokens" in usage else "UNKNOWN", usage_source or None),
+        "resources.cache_creation_input_tokens": evidence(normalized["resources"]["cache_creation_input_tokens"], "OBSERVED" if "cache_creation_input_tokens" in usage else "UNKNOWN", usage_source or None),
+        "resources.output_tokens": evidence(normalized["resources"]["output_tokens"], "OBSERVED" if "output_tokens" in usage else "UNKNOWN", usage_source or None),
         "resources.tool_calls": evidence(tool_count, "OBSERVED" if tool_count is not None else "UNKNOWN", "assistant tool_use blocks" if tool_count is not None else None),
         "resources.duration_ms": evidence(duration_ms, duration_level, duration_source),
         "cost.total": evidence(normalized["cost"]["total"], cost_level, "claude-stream.jsonl:result.total_cost_usd" if cost_level == "OBSERVED" else None),
@@ -247,13 +299,16 @@ def normalize(run_dir: Path) -> tuple[dict[str, Any], dict[str, Any]]:
         "telemetry_completeness_ratio": completeness,
         "field_evidence": field_evidence,
         "observed_tool_names": tool_names,
+        "models_observed": model_names,
+        "per_model_usage": per_model_usage,
         "stream_event_count": len(events),
         "result_event_present": bool(result),
         "decision": "AUDIT_BEFORE_MORE_RUNS",
         "notes": [
             "UNKNOWN means unavailable, not zero.",
+            "Token totals prefer result.modelUsage and do not recursively sum message/result/iteration usage.",
             "Deterministic outcome must be populated from benchmark tests.",
-            "Do not run r02-r05 until telemetry gaps are reviewed.",
+            "Do not run further repetitions until telemetry gaps and outcome capture are reviewed.",
         ],
     }
     return normalized, report
