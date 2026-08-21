@@ -84,8 +84,9 @@ try {
         python_version = $PythonVersion
         pytest_version = $PytestVersion
         python_environment = "benchmark-local-venv"
+        claude_permission_mode = "acceptEdits"
         observation_mode = "passive-cli-stream-json"
-        note = "No Runtime Intelligence intervention. Unknown telemetry fields remain unknown rather than zero."
+        note = "No Runtime Intelligence intervention. acceptEdits is used because print mode is non-interactive and the frozen task requires file modification. Unknown telemetry fields remain unknown rather than zero."
     }
     $Metadata | ConvertTo-Json -Depth 8 | Out-File -Encoding utf8 (Join-Path $Artifacts "RUN_METADATA.json")
 
@@ -97,10 +98,12 @@ try {
 
     # Prepend the benchmark venv Scripts directory only for the Claude subprocess so that
     # when Claude invokes `python` or `pytest`, it sees the same controlled environment.
+    # acceptEdits permits the frozen benchmark's required workspace edit without disabling
+    # Claude Code's permission system broadly.
     $OriginalPath = $env:PATH
     $env:PATH = (Join-Path $Venv "Scripts") + ";" + $OriginalPath
     try {
-        & claude -p $Prompt --output-format stream-json --verbose 1> $StreamPath 2> $StderrPath
+        & claude -p $Prompt --permission-mode acceptEdits --output-format stream-json --verbose 1> $StreamPath 2> $StderrPath
         $ClaudeExit = $LASTEXITCODE
     }
     finally {
