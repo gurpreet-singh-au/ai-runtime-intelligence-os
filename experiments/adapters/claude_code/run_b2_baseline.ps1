@@ -129,11 +129,21 @@ try {
     $NormalizerScript = Join-Path $ScriptDir "normalize_claude_run.py"
     & $VenvPython $NormalizerScript $Artifacts
 
+    $FinalizerScript = Join-Path $ScriptDir "finalize_b2_outcome.py"
+    & $VenvPython $FinalizerScript $Artifacts
+    $OutcomeExit = $LASTEXITCODE
+
     Write-Host "Baseline capture complete: $RunId"
     Write-Host "Artifacts: $Artifacts"
     Write-Host "Normalization: normalized-run.json"
+    Write-Host "Outcome evaluation: B2_OUTCOME_EVALUATION.json"
     Write-Host "Telemetry audit: TELEMETRY_COMPLETENESS.json"
-    Write-Host "STOP HERE before further repetitions. Audit telemetry completeness first."
+    if ($OutcomeExit -eq 0) {
+        Write-Host "Deterministic B2 outcome: PASS"
+    } else {
+        Write-Host "Deterministic B2 outcome: FAIL - inspect B2_OUTCOME_EVALUATION.json"
+    }
+    Write-Host "STOP HERE before further repetitions. Audit telemetry completeness and baseline validity first."
 }
 finally {
     Pop-Location
