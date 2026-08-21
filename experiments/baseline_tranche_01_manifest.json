@@ -1,0 +1,41 @@
+{
+  "manifest_version": "0.1",
+  "status": "ready_for_execution",
+  "created_at": "2026-08-22",
+  "policy_variant": "baseline_native_default_passive_observation",
+  "first_runtime": "Claude Code / Claude coding-agent workflow",
+  "cross_provider_claims_allowed": false,
+  "target_repetitions_per_case": 5,
+  "cases": [
+    {
+      "benchmark_id": "B2-001",
+      "task_family": "small_bug_fix",
+      "fixture": "benchmarks/fixtures/python_runtime_fixture",
+      "deterministic_evaluator": "pytest tests/test_pricing.py",
+      "risk_class": "low"
+    },
+    {
+      "benchmark_id": "B3-001",
+      "task_family": "repository_research",
+      "fixture": "repository_snapshot",
+      "semantic_evaluator": "experiments/evaluators/B3_001_RUBRIC.md",
+      "risk_class": "low"
+    },
+    {
+      "benchmark_id": "B5-001",
+      "task_family": "debug_test_loop",
+      "fixture": "benchmarks/fixtures/python_runtime_fixture",
+      "deterministic_evaluator": "pytest tests/test_retry.py",
+      "risk_class": "low"
+    },
+    {
+      "benchmark_id": "B7-001",
+      "task_family": "multi_agent_decomposable_research",
+      "fixture": "repository_snapshot_plus_allowed_primary_sources",
+      "semantic_evaluator": "experiments/evaluators/B7_001_RUBRIC.md",
+      "risk_class": "low"
+    }
+  ],
+  "required_run_schema": "experiments/RUN_SCHEMA.json",
+  "notes": "No baseline results exist until actual runtime executions and raw telemetry artifacts are captured."
+}
