@@ -11,19 +11,18 @@ Last updated: 2026-08-22
 5. `ROADMAP.md`
 6. `architecture/AI_RUNTIME_RESOURCE_MODEL.md`
 7. `architecture/TELEMETRY_MODEL.md`
-8. `research/MARKET_LANDSCAPE.md`
-9. `research/COMPETITOR_MATRIX.md`
-10. `research/BENCHMARK_AND_BASELINE_SPEC.md`
-11. `benchmarks/README.md`
-12. `benchmarks/prompts/B2-001-baseline.md`
-13. `experiments/BASELINE_TRANCHE_01.md`
-14. `experiments/baseline_tranche_01_manifest.json`
-15. `experiments/RUN_SCHEMA.json`
-16. `experiments/TELEMETRY_GAP_DECISION_PROTOCOL.md`
-17. `experiments/adapters/claude_code/README.md`
-18. `experiments/adapters/claude_code/FIRST_RUN.md`
-19. `experiments/adapters/claude_code/normalize_claude_run.py`
-20. `research/SOURCE_REGISTER.md`
+8. `research/BENCHMARK_AND_BASELINE_SPEC.md`
+9. `benchmarks/README.md`
+10. `benchmarks/prompts/B2-001-baseline.md`
+11. `experiments/BASELINE_TRANCHE_01.md`
+12. `experiments/RUN_SCHEMA.json`
+13. `experiments/TELEMETRY_GAP_DECISION_PROTOCOL.md`
+14. `experiments/adapters/claude_code/run_b2_baseline.ps1`
+15. `experiments/adapters/claude_code/normalize_claude_run.py`
+16. `experiments/adapters/claude_code/finalize_b2_outcome.py`
+17. `research/MARKET_LANDSCAPE.md`
+18. `research/COMPETITOR_MATRIX.md`
+19. `research/SOURCE_REGISTER.md`
 
 Also consult the pinned central framework `gurpreet-singh-au/ai-project-framework` v1.0.0 at commit `8128f2d9b91cec1ec2e9f73833be32cbf01cfdf2` when material governance questions arise.
 
@@ -31,57 +30,69 @@ Also consult the pinned central framework `gurpreet-singh-au/ai-project-framewor
 
 Phase 0B — competitive boundary + experimental proof preparation. Do not start production implementation.
 
-## Work completed in current tranche
+## Empirical status
 
-- primary-source market landscape and competitor matrix created;
-- canonical provider-neutral telemetry model defined;
-- B2-001/B3-001/B5-001/B7-001 converted into concrete reproducible cases;
-- deterministic defect fixtures created for B2/B5;
-- frozen semantic rubrics created for B3/B7;
-- baseline manifest and passive-observation execution plan created;
-- Claude Code chosen provisionally as the first observation runtime only, not as an architecture dependency;
-- B2 baseline PowerShell runner prepared;
-- stream inventory tooling prepared;
-- conservative Claude-to-canonical normalizer prepared and wired into the runner;
-- normalizer tests added to verify missing telemetry stays UNKNOWN/null and model self-claims do not become deterministic success;
-- telemetry-gap decision protocol added so r01 determines whether native CLI, OpenTelemetry, gateway/proxy, SDK harness, or runtime switching is appropriate;
-- no baseline model run has been claimed yet.
+- `B2-001-baseline-r01` is preserved as an invalid discovery run. It exposed two harness defects: Python PATH contamination from an unrelated Hermes venv, and Claude Code edit permission denial in non-interactive mode. Exclude r01 from baseline performance statistics.
+- The harness now creates a benchmark-local Python 3.11 venv, installs pinned pytest 9.1.1, prepends that venv to Claude's subprocess PATH, and uses Claude Code `acceptEdits` rather than disabling permissions broadly.
+- `B2-001-baseline-r02` is the first valid successful baseline candidate:
+  - pre-test: 2 failed / 1 passed;
+  - post-test: 3 passed;
+  - Claude exit code: 0;
+  - bounded implementation diff only in `runtime_fixture/pricing.py`;
+  - reported total cost: USD 0.1763469;
+  - Claude result duration: 20,054 ms;
+  - aggregate input tokens: 1,085;
+  - cache-read input tokens: 262,353;
+  - cache-creation input tokens: 13,224;
+  - output tokens: 1,154;
+  - tool calls: 8;
+  - observed models: Claude Sonnet 5 and Claude Haiku 4.5.
+- Native CLI telemetry completeness is 0.4667 under the generic rubric. This percentage alone is not a reason to add instrumentation; B2 already exposes outcome, cost, latency, model usage, token/cache usage, tool count/sequence, code diff, and deterministic verification.
+- Deterministic B2 finalization is now wired into the runner via `finalize_b2_outcome.py`, producing `B2_OUTCOME_EVALUATION.json` and updating `normalized-run.json` from deterministic evidence rather than model self-report.
 
 ## Next highest-value action
 
-Execute **only** `B2-001-baseline-r01` first in a runtime-capable Claude Code environment.
+Collect additional identical valid B2 baseline repetitions to estimate natural variance before testing any Runtime Intelligence intervention.
 
-Runner:
+Run **one repetition at a time**, beginning with r03:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\experiments\adapters\claude_code\run_b2_baseline.ps1
+powershell -ExecutionPolicy Bypass -File .\experiments\adapters\claude_code\run_b2_baseline.ps1 -RunId "B2-001-baseline-r03"
 ```
 
-The runner should produce raw evidence plus:
+After each run, verify at minimum:
 
-- `STREAM_INVENTORY.json`
-- `normalized-run.json`
-- `TELEMETRY_COMPLETENESS.json`
+- `B2_OUTCOME_EVALUATION.json` reports PASS;
+- pre-test failed as expected;
+- post-test passed;
+- changed files remain bounded to the intended implementation;
+- no permission denial or environment failure invalidated the run;
+- normalized telemetry contains cost, duration, model usage and token/cache usage.
 
-Then **stop before r02-r05**.
+If r03 is valid, continue r04 and r05 under the exact same frozen configuration. Do not change prompt, fixture, model selection settings, permission mode, Python version, pytest version or runner semantics during this baseline series.
 
-## Post-r01 decision
+## Baseline analysis after enough valid repetitions
 
-Apply `experiments/TELEMETRY_GAP_DECISION_PROTOCOL.md`.
+For valid B2 baseline runs only, calculate:
 
-Choose the smallest observation layer that makes the required hypothesis measurable:
+- success rate;
+- total cost mean, median, min/max, standard deviation and coefficient of variation;
+- runtime duration distribution;
+- cache-read/cache-creation/input/output token distributions;
+- tool-call count and sequence variation;
+- model usage variation;
+- correlations that are descriptive only, not causal.
 
-1. native CLI stream if sufficient;
-2. native OpenTelemetry if usage/session evidence is missing;
-3. observation-only gateway/proxy if request/provider economics are missing;
-4. thin Agent SDK/runtime harness if lineage/tool lifecycle is essential and unavailable;
-5. another runtime if instrumentation would materially distort normal execution.
+Use variance to determine whether five valid repetitions are adequate or whether more are needed before intervention comparison.
 
-Do not add instrumentation merely because it is technically possible.
+## Telemetry decision
 
-## Once telemetry is stable
+Do not add OpenTelemetry merely to increase generic completeness. Add a new observation layer only when a specific hypothesis cannot be tested with current evidence. Context composition, instruction composition and Useful State Change remain unavailable natively and may require richer instrumentation for later experiments, but they are not required to establish the initial B2 cost/latency baseline distribution.
 
-Run baseline repetitions, quantify variance, and only then begin isolated interventions:
+## Once B2 baseline is stable
+
+Begin isolated interventions one at a time, with no combined optimiser initially. Candidate sequence remains:
+
 - context selection;
 - instruction compilation;
 - tool-result externalisation;
@@ -91,6 +102,8 @@ Run baseline repetitions, quantify variance, and only then begin isolated interv
 - loop/no-progress advisory;
 - model/reasoning routing;
 - verification allocation.
+
+Choose the first intervention according to the B2 resource profile rather than the original list order if evidence shows another intervention is more relevant.
 
 ## First empirical gate
 
@@ -102,7 +115,8 @@ Do not claim the thesis is validated until at least two representative workloads
 - Do not make OpenRouter, Portkey, Langfuse, LangSmith or Braintrust foundational.
 - Do not build another generic tracing dashboard or model gateway.
 - Do not build an autonomous optimiser.
-- Do not claim cost savings without measured baseline/outcome data.
+- Do not claim cost savings from r02 alone.
 - Do not optimise away mandatory safety/governance instructions.
 - Do not assume more subagents improve quality.
 - Do not infer causality from trace correlation alone.
+- Do not include r01 in baseline statistics.
