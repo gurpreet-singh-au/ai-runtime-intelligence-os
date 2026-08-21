@@ -54,6 +54,8 @@ try {
         policy_variant = "baseline"
         started_at = $StartedAt.ToString("o")
         source_repository_commit = (git -C $RepoRoot rev-parse HEAD)
+        repository_commit = (git -C $RepoRoot rev-parse HEAD)
+        task_snapshot = $GitBefore
         workspace_baseline_commit = $GitBefore
         runtime = "Claude Code"
         runtime_version = $ClaudeVersion
@@ -99,8 +101,13 @@ try {
     $InventoryScript = Join-Path $ScriptDir "inventory_stream.py"
     python $InventoryScript $StreamPath (Join-Path $Artifacts "STREAM_INVENTORY.json")
 
+    $NormalizerScript = Join-Path $ScriptDir "normalize_claude_run.py"
+    python $NormalizerScript $Artifacts
+
     Write-Host "Baseline capture complete: $RunId"
     Write-Host "Artifacts: $Artifacts"
+    Write-Host "Normalization: normalized-run.json"
+    Write-Host "Telemetry audit: TELEMETRY_COMPLETENESS.json"
     Write-Host "STOP HERE before r02-r05. Audit telemetry completeness first."
 }
 finally {
