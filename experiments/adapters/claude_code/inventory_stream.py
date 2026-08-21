@@ -4,6 +4,10 @@
 This script intentionally does not normalise into RUN_SCHEMA.json yet. Its first job is
 observability discovery: enumerate event types, keys, usage-like objects and parse failures
 so the project can decide what is truly observable versus inferred or unknown.
+
+Windows PowerShell 5.1 may write redirected native-process output as UTF-16 and may write
+JSON metadata with a UTF-8 BOM. The reader therefore detects common PowerShell encodings
+rather than assuming UTF-8.
 """
 
 from __future__ import annotations
@@ -15,6 +19,26 @@ from pathlib import Path
 from typing import Any
 
 
+def read_text_portable(path: Path) -> tuple[str, str]:
+    raw = path.read_bytes()
+    if raw.startswith(b"\xff\xfe") or raw.startswith(b"\xfe\xff"):
+        return raw.decode("utf-16"), "utf-16"
+    if raw.startswith(b"\xef\xbb\xbf"):
+        return raw.decode("utf-8-sig"), "utf-8-sig"
+
+    # PowerShell 5.1 redirection can emit UTF-16LE without a BOM in edge cases.
+    if raw and raw.count(b"\x00") > len(raw) // 10:
+        try:
+            return raw.decode("utf-16-le"), "utf-16-le"
+        except UnicodeDecodeError:
+            pass
+
+    try:
+        return raw.decode("utf-8"), "utf-8"
+    except UnicodeDecodeError:
+        return raw.decode("utf-8", errors="replace"), "utf-8-replace"
+
+
 def walk(obj: Any, prefix: str = ""):
     if isinstance(obj, dict):
         for key, value in obj.items():
@@ -22,7 +46,7 @@ def walk(obj: Any, prefix: str = ""):
             yield path, value
             yield from walk(value, path)
     elif isinstance(obj, list):
-        for index, value in enumerate(obj):
+        for value in obj:
             path = f"{prefix}[]"
             yield path, value
             yield from walk(value, path)
@@ -50,60 +74,61 @@ def main() -> int:
     if not source.exists():
         raise FileNotFoundError(source)
 
-    with source.open("r", encoding="utf-8", errors="replace") as handle:
-        for line_number, raw in enumerate(handle, start=1):
-            text = raw.strip()
-            if not text:
-                continue
-            try:
-                record = json.loads(text)
-            except json.JSONDecodeError as exc:
-                parse_errors.append(
-                    {
-                        "line": line_number,
-                        "error": str(exc),
-                        "preview": text[:240],
-                    }
-                )
-                continue
+    decoded, detected_encoding = read_text_portable(source)
+    for line_number, raw in enumerate(decoded.splitlines(), start=1):
+        text = raw.strip().lstrip("\ufeff")
+        if not text:
+            continue
+        try:
+            record = json.loads(text)
+        except json.JSONDecodeError as exc:
+            parse_errors.append(
+                {
+                    "line": line_number,
+                    "error": str(exc),
+                    "preview": text[:240],
+                }
+            )
+            continue
 
-            parsed_lines += 1
-            if isinstance(record, dict):
-                for key in record:
-                    top_level_key_counts[key] += 1
+        parsed_lines += 1
+        if isinstance(record, dict):
+            for key in record:
+                top_level_key_counts[key] += 1
 
-                event_type = None
-                for candidate in ("type", "event", "event_type", "kind"):
-                    value = record.get(candidate)
-                    if isinstance(value, str):
-                        event_type = f"{candidate}:{value}"
-                        break
-                event_type_counts[event_type or "<unclassified>"] += 1
+            event_type = None
+            for candidate in ("type", "event", "event_type", "kind"):
+                value = record.get(candidate)
+                if isinstance(value, str):
+                    event_type = f"{candidate}:{value}"
+                    break
+            event_type_counts[event_type or "<unclassified>"] += 1
 
-            for path, value in walk(record):
-                nested_key_counts[path] += 1
-                low = path.lower()
+        for path, value in walk(record):
+            nested_key_counts[path] += 1
+            low = path.lower()
 
-                if any(token in low for token in ("usage", "token", "cost", "cache")):
-                    usage_like_paths[path] += 1
-                if any(token in low for token in ("session_id", "request_id", "message_id", "id")):
-                    id_like_paths[path] += 1
-                if any(token in low for token in ("tool", "command", "bash", "read", "write", "edit")):
-                    tool_like_paths[path] += 1
-                if any(token in low for token in ("agent", "subagent", "delegate")):
-                    agent_like_paths[path] += 1
+            if any(token in low for token in ("usage", "token", "cost", "cache")):
+                usage_like_paths[path] += 1
+            if any(token in low for token in ("session_id", "request_id", "message_id", "id")):
+                id_like_paths[path] += 1
+            if any(token in low for token in ("tool", "command", "bash", "read", "write", "edit")):
+                tool_like_paths[path] += 1
+            if any(token in low for token in ("agent", "subagent", "delegate")):
+                agent_like_paths[path] += 1
 
-                if len(samples[path]) < 3 and isinstance(value, (str, int, float, bool, type(None))):
-                    sample = value
-                    if isinstance(sample, str) and len(sample) > 240:
-                        sample = sample[:240] + "…"
-                    samples[path].append(sample)
+            if len(samples[path]) < 3 and isinstance(value, (str, int, float, bool, type(None))):
+                sample = value
+                if isinstance(sample, str) and len(sample) > 240:
+                    sample = sample[:240] + "…"
+                samples[path].append(sample)
 
     def ranked(counter: Counter[str], limit: int = 200):
         return [{"path": key, "count": count, "samples": samples.get(key, [])} for key, count in counter.most_common(limit)]
 
     inventory = {
         "source": str(source),
+        "detected_encoding": detected_encoding,
         "parsed_json_lines": parsed_lines,
         "parse_error_count": len(parse_errors),
         "parse_errors": parse_errors[:50],
@@ -119,7 +144,7 @@ def main() -> int:
 
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(inventory, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"wrote stream inventory: {target}")
+    print(f"wrote stream inventory: {target} ({detected_encoding}, {parsed_lines} JSON lines)")
     return 0
 
 
