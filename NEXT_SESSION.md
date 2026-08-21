@@ -15,12 +15,15 @@ Last updated: 2026-08-22
 9. `research/COMPETITOR_MATRIX.md`
 10. `research/BENCHMARK_AND_BASELINE_SPEC.md`
 11. `benchmarks/README.md`
-12. `experiments/BASELINE_TRANCHE_01.md`
-13. `experiments/baseline_tranche_01_manifest.json`
-14. `experiments/RUN_SCHEMA.json`
-15. `experiments/evaluators/B3_001_RUBRIC.md`
-16. `experiments/evaluators/B7_001_RUBRIC.md`
-17. `research/SOURCE_REGISTER.md`
+12. `benchmarks/prompts/B2-001-baseline.md`
+13. `experiments/BASELINE_TRANCHE_01.md`
+14. `experiments/baseline_tranche_01_manifest.json`
+15. `experiments/RUN_SCHEMA.json`
+16. `experiments/TELEMETRY_GAP_DECISION_PROTOCOL.md`
+17. `experiments/adapters/claude_code/README.md`
+18. `experiments/adapters/claude_code/FIRST_RUN.md`
+19. `experiments/adapters/claude_code/normalize_claude_run.py`
+20. `research/SOURCE_REGISTER.md`
 
 Also consult the pinned central framework `gurpreet-singh-au/ai-project-framework` v1.0.0 at commit `8128f2d9b91cec1ec2e9f73833be32cbf01cfdf2` when material governance questions arise.
 
@@ -30,45 +33,55 @@ Phase 0B — competitive boundary + experimental proof preparation. Do not start
 
 ## Work completed in current tranche
 
-- primary-source market landscape started;
-- competitor/adjacent capability matrix created;
+- primary-source market landscape and competitor matrix created;
 - canonical provider-neutral telemetry model defined;
-- benchmark/baseline specification defined;
 - B2-001/B3-001/B5-001/B7-001 converted into concrete reproducible cases;
 - deterministic defect fixtures created for B2/B5;
 - frozen semantic rubrics created for B3/B7;
 - baseline manifest and passive-observation execution plan created;
-- Claude Code / Claude coding-agent workflow selected provisionally as first observation runtime only, not as an architecture dependency;
-- benchmark fixture logic checked to confirm B2/B5 fail their intended pre-fix conditions;
+- Claude Code chosen provisionally as the first observation runtime only, not as an architecture dependency;
+- B2 baseline PowerShell runner prepared;
+- stream inventory tooling prepared;
+- conservative Claude-to-canonical normalizer prepared and wired into the runner;
+- normalizer tests added to verify missing telemetry stays UNKNOWN/null and model self-claims do not become deterministic success;
+- telemetry-gap decision protocol added so r01 determines whether native CLI, OpenTelemetry, gateway/proxy, SDK harness, or runtime switching is appropriate;
 - no baseline model run has been claimed yet.
 
 ## Next highest-value action
 
-Execute the first untouched baseline cycle in a runtime-capable environment:
+Execute **only** `B2-001-baseline-r01` first in a runtime-capable Claude Code environment.
 
-1. B2-001 baseline r01
-2. B3-001 baseline r01
-3. B5-001 baseline r01
-4. B7-001 baseline r01
+Runner:
 
-For each run preserve:
-- exact repository commit/snapshot;
-- runtime/provider/model/version;
-- raw transcript/trace where available;
-- token/cache/cost usage where available;
-- agent/subagent events;
-- tool/search/file/test events;
-- changed-file diff for coding tasks;
-- test/evaluator result;
-- normalized `RUN_SCHEMA.json` record.
+```powershell
+powershell -ExecutionPolicy Bypass -File .\experiments\adapters\claude_code\run_b2_baseline.ps1
+```
 
-Unknown telemetry fields stay null. Do not invent relevance, causal contribution or hidden model internals.
+The runner should produce raw evidence plus:
 
-After r01 across all four cases, inspect telemetry completeness before spending on r02-r05. If the first runtime cannot expose sufficient evidence, revise the observation adapter rather than pretending the missing data exists.
+- `STREAM_INVENTORY.json`
+- `normalized-run.json`
+- `TELEMETRY_COMPLETENESS.json`
 
-## After stable baselines
+Then **stop before r02-r05**.
 
-Only then begin isolated interventions:
+## Post-r01 decision
+
+Apply `experiments/TELEMETRY_GAP_DECISION_PROTOCOL.md`.
+
+Choose the smallest observation layer that makes the required hypothesis measurable:
+
+1. native CLI stream if sufficient;
+2. native OpenTelemetry if usage/session evidence is missing;
+3. observation-only gateway/proxy if request/provider economics are missing;
+4. thin Agent SDK/runtime harness if lineage/tool lifecycle is essential and unavailable;
+5. another runtime if instrumentation would materially distort normal execution.
+
+Do not add instrumentation merely because it is technically possible.
+
+## Once telemetry is stable
+
+Run baseline repetitions, quantify variance, and only then begin isolated interventions:
 - context selection;
 - instruction compilation;
 - tool-result externalisation;
