@@ -2,7 +2,7 @@
 
 Last updated: 2026-08-22
 Phase: Phase 0B — competitive boundary + experimental proof preparation
-Status: Active; first valid B2 baseline captured and awaiting baseline-repetition decision
+Status: Active; two valid B2 baseline repetitions captured (r02, r03)
 
 ## Current objective
 
@@ -37,7 +37,9 @@ Determine whether there is a durable commercial and technical opportunity for a 
 - Claude Code passive-observation harness created under `experiments/adapters/claude_code/`.
 - The Windows harness now uses a benchmark-local Python 3.11 virtual environment with pinned pytest and `acceptEdits` for non-interactive benchmark file edits.
 - A conservative normalization pipeline converts raw Claude run artifacts into provider-neutral `normalized-run.json` plus `TELEMETRY_COMPLETENESS.json` without turning missing telemetry into zero.
-- Token normalization now prefers the final `result.modelUsage` summary rather than recursively double-counting message/result/iteration usage.
+- Token normalization prefers the final `result.modelUsage` summary rather than recursively double-counting message/result/iteration usage.
+- Deterministic B2 finalization is wired into the runner via `finalize_b2_outcome.py`.
+- The B2 evaluator's git-diff path parser was corrected in evaluator v1.1 after r03 exposed a parser defect; existing r03 artifacts were re-evaluated without re-running the model.
 - `experiments/TELEMETRY_GAP_DECISION_PROTOCOL.md` governs whether native CLI evidence is sufficient or requires OpenTelemetry, gateway/proxy, SDK instrumentation, or a different runtime.
 - Control maturity path remains: Observe -> Explain -> Recommend -> Simulate -> Guardrail -> Auto-optimise.
 
@@ -52,7 +54,7 @@ Determine whether there is a durable commercial and technical opportunity for a 
 - The trace showed Claude correctly diagnosed the pricing defect and proposed the intended minimal fix, but no file change was applied.
 - Preserve r01 as instrumentation/environment discovery evidence; do not include it in baseline performance statistics.
 
-### B2-001-baseline-r02 — first valid candidate baseline
+### B2-001-baseline-r02 — valid baseline #1
 
 Environment:
 - Claude Code 2.1.238
@@ -66,7 +68,7 @@ Outcome:
 - Claude exit code: 0;
 - post-test: 3 passed;
 - diff: only `runtime_fixture/pricing.py`, with the intended minimal correction so shipping is added after the merchandise discount;
-- therefore B2-001 r02 is the first valid successful baseline candidate.
+- valid successful baseline.
 
 Observed native telemetry:
 - aggregate input tokens: 1,085;
@@ -79,10 +81,28 @@ Observed native telemetry:
 - observed models: `claude-sonnet-5` and `claude-haiku-4-5-20251001`;
 - telemetry completeness under current required-field rubric: 0.4667.
 
+### B2-001-baseline-r03 — valid baseline #2
+
+- Initial evaluator v1 result incorrectly reported failure because `changed_paths` was empty even though the diff clearly contained only `runtime_fixture/pricing.py`.
+- Root cause: evaluator parsed the wrong token from the unified git diff header `diff --git a/<path> b/<path>`.
+- Evaluator v1.1 corrected the parser and r03 was re-evaluated from preserved artifacts; no model rerun was required.
+- Deterministic result after correction:
+  - `success: true`;
+  - `mandatory_compliance: true`;
+  - Claude exit zero;
+  - fixture failed before;
+  - tests passed after;
+  - pre/post evidence present;
+  - diff present;
+  - only `runtime_fixture/pricing.py` changed;
+  - tests untouched;
+  - intended formula present.
+- r03 is therefore valid baseline #2.
+
 Important interpretation constraints:
 - cache token counts are provider-reported processed/cache usage, not unique semantic context size;
 - context composition, instruction composition, useful state change, repeated-operation structure and some model/agent lineage fields remain UNKNOWN;
-- one successful run is not enough to estimate variance or claim optimisation savings.
+- two successful runs are still insufficient to estimate a stable variance distribution or claim optimisation savings.
 
 ## Current differentiation hypotheses to prove
 
@@ -113,21 +133,21 @@ Target repetitions: five valid runs per case where economically practical, revis
 
 ## Current blockers / unknowns
 
-- Need deterministic outcome finalization wired into normalized run artifacts rather than requiring manual interpretation of test outputs.
-- Need to decide whether native CLI telemetry is sufficient for B2 baseline repetitions despite 46.67% completeness, or whether missing fields are material to the specific B2 hypothesis.
+- Need additional valid B2 repetitions to quantify natural cost/latency/token/tool variance.
+- Native CLI telemetry completeness remains 46.67% under the generic rubric; this is not itself a reason to instrument further because B2 exposes the fields needed for the initial baseline distribution.
 - Context/instruction composition is not exposed natively in the current CLI stream.
 - Useful State Change and no-progress intervals remain unmeasured.
-- Need baseline variance before any cost/latency improvement claim.
 - Whether external control-plane/instrumentation overhead erodes savings remains unknown.
 - Whether customers will pay for cross-provider runtime optimisation versus provider-native/gateway capabilities remains unproven.
 
 ## Immediate next work
 
-1. Treat B2-001 r02 as the first valid successful baseline candidate; exclude r01 from baseline statistics.
-2. Add deterministic B2 outcome finalization so `normalized-run.json` records success/compliance from test exit metadata and bounded diff evidence.
-3. Apply the telemetry-gap decision protocol specifically to B2: distinguish fields required for this benchmark from fields that can remain UNKNOWN without invalidating baseline repetitions.
-4. If B2 native telemetry is sufficient, collect additional valid B2 baseline repetitions and quantify variance before intervention testing.
-5. Do not add OpenTelemetry solely to increase a generic completeness percentage; add instrumentation only if required by the hypothesis under test.
-6. After a stable B2 baseline distribution exists, begin one isolated intervention at a time rather than a combined optimiser.
-7. Continue competitor deep dives while runtime experiments progress.
-8. Do not build a production control plane until measured baseline/intervention evidence supports it.
+1. Preserve r01 as invalid discovery evidence; exclude it from baseline statistics.
+2. Treat r02 and r03 as valid baseline observations.
+3. Run B2-001 baseline r04 under the exact same frozen configuration and deterministic evaluator v1.1.
+4. If valid, continue r05 without changing prompt, fixture, model selection settings, permission mode, Python version, pytest version or runner semantics.
+5. After at least four valid baseline observations are available, calculate preliminary variance; after five valid observations, decide whether the sample is sufficiently stable or more repetitions are needed.
+6. Do not add OpenTelemetry solely to increase the generic completeness percentage; add instrumentation only if required by a specific later hypothesis.
+7. After a stable B2 baseline distribution exists, begin one isolated intervention at a time rather than a combined optimiser.
+8. Continue competitor deep dives while runtime experiments progress.
+9. Do not build a production control plane until measured baseline/intervention evidence supports it.
