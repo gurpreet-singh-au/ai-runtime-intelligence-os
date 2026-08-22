@@ -1,5 +1,5 @@
 param(
-    [string]$ProbeId = "CODEX-B2-C1-wsl-capability-r02"
+    [string]$ProbeId = "CODEX-B2-C1-wsl-capability-r03"
 )
 
 $ErrorActionPreference = "Stop"
@@ -29,10 +29,6 @@ $StartedAt = [DateTimeOffset]::Now
 $RawDistros = & wsl.exe -l -q 2>&1
 $ListExit = $LASTEXITCODE
 
-# On some Windows/PowerShell combinations, wsl.exe -l -q arrives as strings with
-# embedded NUL characters (for example U\0b\0u\0n\0t\0u). Removing only a trailing
-# NUL leaves an invalid distro name and makes every subsequent `wsl -d` probe fail.
-# Strip embedded NULs across the whole line before using the distro name.
 $Distros = @(
     $RawDistros |
         ForEach-Object { ($_.ToString() -replace "`0", "").Trim() } |
@@ -41,37 +37,35 @@ $Distros = @(
 
 $DistroReports = @()
 foreach ($Distro in $Distros) {
-    $Command = @'
-set +e
-printf 'user='; id -un 2>/dev/null
-printf 'kernel='; uname -sr 2>/dev/null
-printf 'cwd='; pwd 2>/dev/null
-if command -v codex >/dev/null 2>&1; then
-  echo 'codex_present=true'
-  printf 'codex_path='; command -v codex
-  printf 'codex_version='; codex --version 2>&1 | head -n 1
-else
-  echo 'codex_present=false'
-fi
-if command -v git >/dev/null 2>&1; then
-  echo 'git_present=true'
-  printf 'git_version='; git --version 2>&1 | head -n 1
-else
-  echo 'git_present=false'
-fi
-if command -v python3 >/dev/null 2>&1; then
-  echo 'python3_present=true'
-  printf 'python3_version='; python3 --version 2>&1 | head -n 1
-else
-  echo 'python3_present=false'
-fi
-# Existence only; never print auth/config contents.
-if [ -d "$HOME/.codex" ]; then echo 'codex_home_present=true'; else echo 'codex_home_present=false'; fi
-if [ -f "$HOME/.codex/auth.json" ]; then echo 'codex_auth_file_present=true'; else echo 'codex_auth_file_present=false'; fi
-'@
+    # Keep the Linux probe as a single compact command. Passing a multi-line
+    # PowerShell here-string to `bash -lc` on Windows can be split/rewritten in
+    # transit (observed as `set: +`), so avoid shell-control preambles and CRLF-
+    # sensitive formatting entirely.
+    $Command = "printf 'user='; id -un 2>/dev/null; printf 'kernel='; uname -sr 2>/dev/null; printf 'cwd='; pwd 2>/dev/null; if command -v codex >/dev/null 2>&1; then echo 'codex_present=true'; printf 'codex_path='; command -v codex; printf 'codex_version='; codex --version 2>&1 | head -n 1; else echo 'codex_present=false'; fi; if command -v git >/dev/null 2>&1; then echo 'git_present=true'; printf 'git_version='; git --version 2>&1 | head -n 1; else echo 'git_present=false'; fi; if command -v python3 >/dev/null 2>&1; then echo 'python3_present=true'; printf 'python3_version='; python3 --version 2>&1 | head -n 1; else echo 'python3_present=false'; fi; if [ -d `"`$HOME/.codex`" ]; then echo 'codex_home_present=true'; else echo 'codex_home_present=false'; fi; if [ -f `"`$HOME/.codex/auth.json`" ]; then echo 'codex_auth_file_present=true'; else echo 'codex_auth_file_present=false'; fi"
 
-    $Output = & wsl.exe -d $Distro -- bash -lc $Command 2>&1
-    $Exit = $LASTEXITCODE
+    $OriginalErrorActionPreference = $ErrorActionPreference
+    $HadPSNativePreference = Test-Path variable:PSNativeCommandUseErrorActionPreference
+    if ($HadPSNativePreference) {
+        $OriginalPSNativePreference = $PSNativeCommandUseErrorActionPreference
+    }
+
+    try {
+        # A failed distro probe is data, not a reason to abort the whole capability
+        # scan. Capture native stderr and preserve the actual WSL exit code.
+        $ErrorActionPreference = "Continue"
+        if ($HadPSNativePreference) {
+            $PSNativeCommandUseErrorActionPreference = $false
+        }
+        $Output = & wsl.exe -d $Distro -- bash -lc $Command 2>&1
+        $Exit = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $OriginalErrorActionPreference
+        if ($HadPSNativePreference) {
+            $PSNativeCommandUseErrorActionPreference = $OriginalPSNativePreference
+        }
+    }
+
     $Lines = @($Output | ForEach-Object { ($_.ToString() -replace "`0", "") })
     $Values = [ordered]@{}
     foreach ($Line in $Lines) {
@@ -98,6 +92,7 @@ if [ -f "$HOME/.codex/auth.json" ]; then echo 'codex_auth_file_present=true'; el
         python3_version = $Values['python3_version']
         codex_home_present = $Values['codex_home_present'] -eq 'true'
         codex_auth_file_present = $Values['codex_auth_file_present'] -eq 'true'
+        raw_probe_output = $Lines
     }
 }
 
@@ -118,7 +113,7 @@ $Summary = [ordered]@{
     credentials_copied = $false
     codex_agent_task_executed = $false
     benchmark_comparison_eligible = $false
-    previous_probe_note = "r01 discovered two WSL distro entries but distro names contained embedded NUL characters, causing invalid `wsl -d` probes. Its WSL_PRESENT_CODEX_NOT_INSTALLED decision is not accepted as evidence about Codex availability."
+    previous_probe_note = "r01 had embedded-NUL distro names. r02 fixed names but the multi-line bash command was not transported reliably through PowerShell/WSL and aborted on a malformed `set +e`. Neither result is accepted as evidence about WSL Codex availability."
     next_decision = $(
         if ($ListExit -ne 0 -or $Distros.Count -eq 0) { "NO_EXISTING_WSL_PATH" }
         elseif ($SuccessfulDistroProbes.Count -eq 0) { "WSL_LISTED_BUT_DISTRO_PROBES_FAILED" }
