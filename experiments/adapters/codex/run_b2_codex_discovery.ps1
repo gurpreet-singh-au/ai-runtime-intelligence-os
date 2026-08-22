@@ -1,5 +1,5 @@
 param(
-    [string]$RunId = "B2-001-codex-discovery-r01"
+    [string]$RunId = "B2-001-codex-discovery-r02"
 )
 
 $ErrorActionPreference = "Stop"
@@ -8,6 +8,24 @@ function Require-Command([string]$Name) {
     if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
         throw "Required command '$Name' was not found on PATH."
     }
+}
+
+function Resolve-CodexNativeCommand() {
+    $Resolved = Get-Command codex -ErrorAction Stop
+    $Source = $Resolved.Source
+
+    # npm on Windows commonly exposes both codex.ps1 and codex.cmd. Calling the
+    # PowerShell shim under ErrorActionPreference=Stop can promote node.exe stderr
+    # diagnostics into terminating PowerShell NativeCommandError records before
+    # Codex gets a chance to continue. Prefer the sibling .cmd shim for experiment
+    # execution so stderr remains ordinary captured process output.
+    if ($Source -and $Source.EndsWith(".ps1", [System.StringComparison]::OrdinalIgnoreCase)) {
+        $CmdCandidate = [System.IO.Path]::ChangeExtension($Source, ".cmd")
+        if (Test-Path $CmdCandidate) {
+            return $CmdCandidate
+        }
+    }
+    return $Source
 }
 
 function Run-PytestCapture([string]$PythonExe, [string]$OutputPath) {
@@ -61,14 +79,14 @@ try {
     $GitBefore = git rev-parse HEAD
     $GitBefore | Out-File -Encoding utf8 (Join-Path $Artifacts "git-before.txt")
 
-    $CodexCommand = (Get-Command codex).Source
-    $CodexVersion = (& codex --version 2>&1 | Out-String).Trim()
+    $CodexCommand = Resolve-CodexNativeCommand
+    $CodexVersion = (& $CodexCommand --version 2>&1 | Out-String).Trim()
     $PythonVersion = (& $VenvPython --version 2>&1 | Out-String).Trim()
     $PytestVersion = (& $VenvPython -m pytest --version 2>&1 | Out-String).Trim()
     $StartedAt = [DateTimeOffset]::Now
 
     $Metadata = [ordered]@{
-        schema_version = "0.1"
+        schema_version = "0.2"
         run_id = $RunId
         benchmark_id = "B2-001"
         lane = "CODEX-B2-C1"
@@ -90,7 +108,9 @@ try {
         user_rules_loaded = $false
         json_event_capture = $true
         benchmark_comparison_eligible = $false
-        note = "Discovery-only. Validates installed Codex 0.144.x execution, Windows workspace-write semantics, edit persistence, JSON event schema and deterministic evaluator compatibility. No dangerous-full-access fallback is permitted."
+        prior_discovery = "B2-001-codex-discovery-r01 aborted before agent execution because npm codex.ps1 promoted a nonfatal models-cache stderr diagnostic into a PowerShell NativeCommandError under ErrorActionPreference=Stop."
+        known_environment_note = "Installed Codex 0.144.3 may encounter a models_cache.json compatibility warning if the shared cache was written by a newer Codex client. Upstream openai/codex issue #39291 documents this class of backward-compatibility warning and states older clients fall back to remote model fetch. This harness prefers codex.cmd so captured stderr does not itself terminate PowerShell."
+        note = "Discovery-only. Validates installed Codex execution, Windows workspace-write semantics, edit persistence, JSON event schema and deterministic evaluator compatibility. No dangerous-full-access fallback is permitted."
     }
     $Metadata | ConvertTo-Json -Depth 8 | Out-File -Encoding utf8 (Join-Path $Artifacts "RUN_METADATA.json")
 
@@ -101,18 +121,10 @@ try {
     $StderrPath = Join-Path $Artifacts "codex-stderr.log"
     $FinalMessagePath = Join-Path $Artifacts "codex-final-message.txt"
 
-    # Give Codex the same controlled Python/pytest environment seen by the evaluator.
     $OriginalPath = $env:PATH
     $env:PATH = (Join-Path $Venv "Scripts") + ";" + $OriginalPath
     try {
-        # Important discovery controls:
-        # - workspace-write requested explicitly;
-        # - no automatic fallback to danger-full-access;
-        # - session is ephemeral;
-        # - user config/rules are ignored to reduce uncontrolled runtime policy;
-        # - network and plugin activity are disabled through explicit config overrides;
-        # - JSONL events are captured for schema discovery.
-        & codex exec `
+        & $CodexCommand exec `
             --json `
             --color never `
             --sandbox workspace-write `
@@ -155,10 +167,18 @@ try {
     & $VenvPython $FinalizerScript $Artifacts
     $OutcomeExit = $LASTEXITCODE
 
+    $CacheWarningObserved = $false
+    if (Test-Path $StderrPath) {
+        $StderrText = Get-Content -Raw $StderrPath
+        $CacheWarningObserved = $StderrText.Contains("failed to load models cache") -and $StderrText.Contains("base_instructions")
+    }
+
     $Summary = [ordered]@{
         run_id = $RunId
         codex_version = $CodexVersion
+        codex_command = $CodexCommand
         codex_exit_code = $CodexExit
+        models_cache_compatibility_warning_observed = $CacheWarningObserved
         tests_before_exit_code = $TestsBeforeExit
         tests_after_exit_code = $TestsAfterExit
         workspace_modified = $Metadata.workspace_modified
