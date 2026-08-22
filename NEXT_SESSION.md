@@ -18,15 +18,13 @@ Last updated: 2026-08-22
 12. `experiments/B2_ATTRIBUTION_STAGE_A_RESULT.md`
 13. `experiments/B2_ATTRIBUTION_STAGE_B1_RESULT.md`
 14. `experiments/B2_ATTRIBUTION_STAGE_B2_RESULT.md`
-15. `experiments/B2_ATTRIBUTION_STAGE_B_PLAN.md`
-16. `experiments/CODEX_B2_CONTROLLED_BASELINE_PLAN.md`
+15. `experiments/CODEX_B2_CONTROLLED_BASELINE_PLAN.md`
+16. `experiments/CODEX_B2_DISCOVERY_RESULT.md`
 17. `experiments/TELEMETRY_GAP_DECISION_PROTOCOL.md`
-18. `experiments/analyze_b2_otel_diagnostic.py`
-19. `experiments/adapters/claude_code/run_b2_baseline.ps1`
-20. `experiments/adapters/claude_code/run_b2_otel_diagnostic.ps1`
-21. `research/MARKET_LANDSCAPE.md`
-22. `research/COMPETITOR_MATRIX.md`
-23. `research/SOURCE_REGISTER.md`
+18. `research/COMMERCIAL_DEFENSIBILITY_REAUDIT_2026-08-22.md`
+19. `research/COMPETITOR_MATRIX.md`
+20. `experiments/analyze_b2_otel_diagnostic.py`
+21. `experiments/adapters/codex/analyze_codex_discovery.py`
 
 Consult the pinned central framework `gurpreet-singh-au/ai-project-framework` v1.0.0 at commit `8128f2d9b91cec1ec2e9f73833be32cbf01cfdf2` for material governance questions.
 
@@ -91,28 +89,59 @@ Target source classes:
 
 This is a measurement mechanism, not a product dependency.
 
-## Immediate parallel action — Codex discovery
+## Codex discovery status — NATIVE WINDOWS BLOCKED
 
-Start the separate `CODEX-B2-C1` lane now.
+Formal record: `experiments/CODEX_B2_DISCOVERY_RESULT.md`.
 
-First perform **CLI capability discovery only**. Do not guess command flags from memory and do not immediately count the first execution as a baseline.
+Installed Codex: `codex-cli 0.144.3`.
 
-Record locally:
+Discovery r03 reached a real model turn and emitted valid JSONL telemetry, but the agent explicitly reported the workspace as read-only despite the harness requesting `--sandbox workspace-write`.
 
-- `codex --version`;
-- top-level help/command surface;
-- non-interactive execution help if available;
-- sandbox/approval options exposed by the installed build;
-- structured/JSON output options;
-- model/reasoning configuration options exposed by the installed build.
+Observed r03 usage:
 
-Then create the first discovery execution only after the installed CLI surface is understood.
+- input tokens: 9,010
+- cached input tokens: 0
+- output tokens: 46
+- reasoning output tokens: 0
 
-Suggested first execution ID remains:
+No command execution, no file-change event and no tracked code diff occurred. Post-tests remained failing, so the deterministic evaluator correctly rejected the run.
 
-`B2-001-codex-discovery-r01`
+The only workspace changes were untracked Python `__pycache__` directories from test execution.
 
-Validate sandbox/write behavior, Python/pytest resolution, edit persistence, event/usage telemetry and deterministic evaluator compatibility.
+This closely matches active upstream OpenAI Codex issue `#34961`, which reports native Windows `codex exec --sandbox workspace-write` behaving read-only even while exiting successfully.
+
+The separate `models_cache.json` / `base_instructions` warning matches upstream issue `#39291`, but it is no longer the primary blocker because r03 reached `turn.completed`.
+
+### Codex next action
+
+Do **not** use `danger-full-access` merely to force a successful benchmark run.
+
+Next, check whether an already-available WSL/Linux environment exists locally and whether Codex is already installed/authenticated there. This is discovery only:
+
+- do not install software;
+- do not copy auth material;
+- do not alter Windows Codex config;
+- do not count a capability probe as a benchmark run.
+
+If an existing WSL/Linux Codex path is available, first run a minimal synthetic bounded-write probe. Only if `workspace-write` works as intended should B2 be attempted there under a new discovery ID.
+
+Any Codex version change is an experimental-factor change and requires fresh capability/sandbox probing before baseline freeze.
+
+## Competitive/commercial status
+
+The commercial boundary is narrower than initially assumed.
+
+Material overlaps now include:
+
+- Not Diamond Code: coding-agent session/cache-aware model and reasoning-effort routing.
+- cascadeflow: MIT-licensed agent runtime intelligence/harness with model cascading and budget/compliance/KPI/tool controls.
+- established observability/evaluation/gateway platforms.
+
+Do not claim `agent runtime intelligence`, generic model routing, generic context optimisation, or agent governance as unique.
+
+The remaining potentially differentiated thesis is **cross-resource marginal allocation under a common governed outcome objective** across context, instructions, models/reasoning, tools, agents, memory, verification and time.
+
+Continue code-level teardown and empirical comparison rather than relying on product marketing.
 
 ## Intervention rule
 
@@ -132,4 +161,6 @@ Do not claim the project thesis is validated until at least two representative w
 - Do not make a measurement proxy/wrapper a foundational architecture dependency.
 - Do not pool Codex and Claude statistics.
 - Do not tune runtime-specific prompts for comparative advantage.
+- Do not weaken Codex to unrestricted filesystem access merely to obtain a valid sample.
+- Do not automatically install/upgrade Codex or copy credentials into WSL as part of discovery.
 - Do not build an autonomous optimiser or production control plane.
