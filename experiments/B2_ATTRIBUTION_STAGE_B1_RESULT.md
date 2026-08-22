@@ -3,81 +3,105 @@
 Date: 2026-08-22
 Experiment: `B2-ATTR-001`
 Stage: B1 — native OpenTelemetry capability discovery
-Probe: `B2-ATTR-001-otel-capability-probe-r01`
 Runtime: Claude Code 2.1.238 on Windows
-Decision: **NO OTEL EMISSION OBSERVED VIA CONSOLE EXPORTERS; RUN ONE LOCAL OTLP TRANSPORT PROBE BEFORE ESCALATING**
+Decision: **NATIVE OTLP TRANSPORT OBSERVED; CONTINUE WITH PRIVACY-SAFE SIGNAL-SCHEMA DISCOVERY**
 
 ## What was tested
 
-The probe enabled Claude Code user-managed telemetry with console exporters for metrics, logs and traces while deliberately keeping raw API bodies, user prompt text, tool details and tool content disabled.
+Stage B1 used two increasingly specific probes.
 
-The Claude process completed successfully with exit code 0.
+### Probe 1 — console exporters
 
-A split-channel analysis was then performed because the initial probe summary had combined normal Claude `stream-json` stdout with potential OpenTelemetry output.
+`B2-ATTR-001-otel-capability-probe-r01`
 
-## Split-channel result
+Claude Code user-managed telemetry was enabled with console exporters for metrics, logs and traces while deliberately keeping raw API bodies, user prompt text, tool details and tool content disabled.
 
-### stdout
+The Claude process completed successfully with exit code 0, but split-channel analysis found no separately observable OpenTelemetry stream:
 
-- four JSON objects were emitted;
-- all four were ordinary Claude stream-json events:
-  - `rate_limit_event`;
-  - `system`;
-  - `assistant`;
-  - `result`;
-- model/token/cache/cost/request keywords were present, but those fields are already part of ordinary Claude stream-json;
-- no unambiguous OpenTelemetry structural payload was detected.
+- stdout contained only ordinary Claude `stream-json` events;
+- stderr was empty;
+- analyzer decision: `NO_OTEL_EMISSION_OBSERVED`.
 
-### stderr
+That result was intentionally treated as inconclusive for OTLP transport because console-exporter behavior can differ from OTLP export behavior.
 
-- file existed;
-- byte length: 0;
-- no telemetry records or OpenTelemetry structural fields were observed.
+### Probe 2 — local loopback OTLP transport
 
-Formal analyzer decision:
+`B2-ATTR-001-otel-loopback-r01`
 
-`NO_OTEL_EMISSION_OBSERVED`
+A minimal receiver listened only on `127.0.0.1:4318`. Claude Code was configured for OTLP/HTTP export. The receiver persisted no telemetry bodies and recorded only transport metadata.
+
+Observed result:
+
+- Claude exit code: `0`;
+- total OTLP requests: **7**;
+- `/v1/metrics`: **3** requests;
+- `/v1/logs`: **2** requests;
+- `/v1/traces`: **2** requests;
+- `otlp_transport_observed`: **true**;
+- raw bodies persisted: **false**;
+- decision: `OTLP_REQUESTS_OBSERVED`.
 
 ## Interpretation
 
-This result proves only that **the configured console-exporter probe did not produce a separately observable OpenTelemetry stream** in this environment.
+This resolves the transport question.
 
-It does not yet prove that Claude Code 2.1.238 cannot export user-managed OpenTelemetry through OTLP transport.
+**Claude Code 2.1.238 is capable of initializing and exporting native OTLP telemetry in this environment.**
 
-Relevant upstream evidence makes this distinction important:
+The earlier console-exporter silence must therefore not be interpreted as absence of native telemetry support.
 
-- Anthropic's Claude Code repository has an open Windows issue describing cases where third-party OpenTelemetry never initializes and even console exporters emit nothing on managed/enterprise accounts (`anthropics/claude-code#46204`).
-- A separate Windows regression report documented log/events exporters emitting nothing while metrics worked; that issue was later closed as completed (`anthropics/claude-code#64396`).
+The loopback result also confirms that all three signal classes were attempted in this diagnostic configuration:
 
-Therefore console-exporter silence should not be interpreted as definitive absence of all OTLP capability.
+1. metrics;
+2. logs;
+3. traces.
+
+This is stronger than the earlier console probe and is sufficient to justify one further native-telemetry discovery step before considering a custom SDK wrapper, proxy or gateway.
+
+## What remains unresolved
+
+Transport success does **not** yet establish that the emitted payload exposes the attribution fields required by `B2-ATTR-001`.
+
+We still need to know, without retaining sensitive values, which schema elements are actually present, including where available:
+
+- metric names;
+- event/log names;
+- span names;
+- resource attribute keys;
+- log attribute keys;
+- span attribute keys;
+- model/request/tool/session/parent-child identifiers;
+- token/cache/cost fields;
+- context/compaction fields;
+- any prompt/system/tool-schema composition metadata.
 
 ## Next smallest diagnostic
 
-Before introducing an external collector, SDK wrapper or proxy, run one **local loopback OTLP transport probe**:
+Run a **privacy-safe OTLP schema discovery probe**.
 
-1. start a minimal local HTTP receiver on `127.0.0.1:4318`;
-2. configure Claude Code to export OTLP over HTTP/protobuf to that receiver;
-3. run a minimal no-tool prompt;
-4. record only request path, content type and payload byte count — not request bodies;
-5. determine whether Claude attempts `/v1/metrics`, `/v1/logs` or `/v1/traces` requests.
+The receiver should parse OTLP protobuf bodies in memory, extract only structural names/keys, immediately discard values and raw bodies, and persist only a schema summary.
 
-This directly answers whether the current runtime initializes and attempts OTLP export without requiring Docker, a cloud backend or raw-content inspection.
+It must not persist:
 
-## Decision rule after loopback probe
+- prompt text;
+- repository/file content;
+- tool arguments/results;
+- model response text;
+- raw telemetry bodies;
+- attribute values that could contain user/repository content.
 
-- **OTLP requests observed** -> native telemetry transport works; inspect which signal classes are actually emitted and whether they improve attribution.
-- **No OTLP requests observed** -> treat native OTel as unavailable/unreliable in this environment for the present experiment and move to the next-smallest observation mechanism under the telemetry-gap protocol.
+The purpose is to answer:
+
+> Which native Claude Code OTel fields are actually observable in this installed runtime, and do they materially improve B2 context/instruction attribution?
+
+## Decision rule after schema discovery
+
+- **Useful attribution fields observed** -> design one B2 telemetry-enabled diagnostic capture under Stage B2.
+- **Only generic usage/operations fields observed** -> native OTel is useful for runtime tracing but insufficient for composition attribution; escalate to the next-smallest observation mechanism under the telemetry-gap protocol.
+- **Sensitive values required to answer composition** -> do not enable broad persistent logging; evaluate a tightly controlled local-only diagnostic or a thin wrapper instead.
 
 ## Privacy guardrails
 
-The loopback receiver must not persist request bodies. It may record only:
-
-- timestamp;
-- HTTP method;
-- request path;
-- content type;
-- content encoding;
-- body byte length;
-- response status.
-
-No raw telemetry payload, prompt text, repository content or tool content should be committed to GitHub.
+- All raw OTLP payloads remain memory-only.
+- Persist structural names and attribute keys only.
+- Keep all diagnostic summaries under `experiments/local-runs/` unless explicitly redacted and promoted into a repository result document.
+- No benchmark savings claim is allowed from these diagnostic probes.
