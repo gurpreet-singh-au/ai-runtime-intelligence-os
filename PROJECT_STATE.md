@@ -2,7 +2,7 @@
 
 Last updated: 2026-08-22
 Phase: Phase 0B — competitive boundary + experimental proof preparation
-Status: Active; two valid B2 baseline repetitions captured (r02, r03)
+Status: First B2 empirical baseline series frozen; attribution experiment designed
 
 ## Current objective
 
@@ -23,86 +23,67 @@ Determine whether there is a durable commercial and technical opportunity for a 
 - Instruction Intelligence identified as a first-class subsystem.
 - Agent/subagent economics identified as a first-class subsystem.
 - OpenRouter identified as a useful replaceable routing/gateway adapter, not a canonical dependency.
-- Deep research tranches started on context, caching, inference, tools, agents, memory, runtime, and economics.
 - Competitive/adjacent landscape documented in `research/MARKET_LANDSCAPE.md` and `research/COMPETITOR_MATRIX.md`.
-- Current competitor finding: observability, evaluation, gateway routing, reliability, budgets and agent/tool governance already exist in adjacent platforms; the project must prove additional value in cross-resource task planning and runtime allocation rather than duplicate that plumbing.
 - Canonical provider-neutral telemetry model defined in `architecture/TELEMETRY_MODEL.md`.
 - Benchmark and baseline experiment design defined in `research/BENCHMARK_AND_BASELINE_SPEC.md`.
 - Machine-readable experiment run schema defined in `experiments/RUN_SCHEMA.json`.
 - Concrete benchmark cases B2-001, B3-001, B5-001 and B7-001 defined in `benchmarks/README.md`.
-- Deterministic Python fixtures created for B2-001 and B5-001 under `benchmarks/fixtures/python_runtime_fixture/`.
-- Semantic evaluator rubrics created for B3-001 and B7-001 under `experiments/evaluators/`.
-- First passive baseline tranche documented in `experiments/BASELINE_TRANCHE_01.md` and `experiments/baseline_tranche_01_manifest.json`.
-- Provisional first observation runtime: Claude Code / Claude coding-agent workflow, selected as an experimental starting point because it matches the motivating workload. This is not an architectural dependency or permanent provider decision.
 - Claude Code passive-observation harness created under `experiments/adapters/claude_code/`.
-- The Windows harness now uses a benchmark-local Python 3.11 virtual environment with pinned pytest and `acceptEdits` for non-interactive benchmark file edits.
-- A conservative normalization pipeline converts raw Claude run artifacts into provider-neutral `normalized-run.json` plus `TELEMETRY_COMPLETENESS.json` without turning missing telemetry into zero.
-- Token normalization prefers the final `result.modelUsage` summary rather than recursively double-counting message/result/iteration usage.
-- Deterministic B2 finalization is wired into the runner via `finalize_b2_outcome.py`.
-- The B2 evaluator's git-diff path parser was corrected in evaluator v1.1 after r03 exposed a parser defect; existing r03 artifacts were re-evaluated without re-running the model.
-- `experiments/TELEMETRY_GAP_DECISION_PROTOCOL.md` governs whether native CLI evidence is sufficient or requires OpenTelemetry, gateway/proxy, SDK instrumentation, or a different runtime.
+- Windows harness uses a benchmark-local Python 3.11 virtual environment, pinned pytest 9.1.1 and Claude Code `acceptEdits`.
+- Deterministic B2 finalization is wired into the runner via `finalize_b2_outcome.py`; evaluator v1.1 correctly parses changed paths.
+- `experiments/TELEMETRY_GAP_DECISION_PROTOCOL.md` governs whether additional telemetry is justified by a specific hypothesis.
+- `experiments/analyze_b2_baselines.py` aggregates valid local B2 runs into descriptive baseline statistics.
 - Control maturity path remains: Observe -> Explain -> Recommend -> Simulate -> Guardrail -> Auto-optimise.
 
-## First empirical captures
+## B2 empirical baseline v1 — FROZEN
 
-### B2-001-baseline-r01 — discovery / invalid baseline
+Included valid runs:
 
-- Captured useful native Claude Code stream evidence, but the run is not a valid baseline.
-- Two harness defects were discovered:
-  1. plain `python` resolved to an unrelated Hermes virtual environment without pytest;
-  2. Claude Code non-interactive execution used default permissions, so the correct `Edit` operation was denied twice.
-- The trace showed Claude correctly diagnosed the pricing defect and proposed the intended minimal fix, but no file change was applied.
-- Preserve r01 as instrumentation/environment discovery evidence; do not include it in baseline performance statistics.
+- `B2-001-baseline-r02`
+- `B2-001-baseline-r03`
+- `B2-001-baseline-r04`
+- `B2-001-baseline-r05`
+- `B2-001-baseline-r06`
 
-### B2-001-baseline-r02 — valid baseline #1
+Excluded:
 
-Environment:
-- Claude Code 2.1.238
-- benchmark-local Python 3.11.6 venv
-- pytest 9.1.1
-- permission mode `acceptEdits`
-- source repository commit `1358d0516957951e51be1ec1028ab74a8eb302b1`
+- `B2-001-baseline-r01` — invalid discovery run; harness/environment evidence only.
 
-Outcome:
-- pre-test: 2 failed, 1 passed;
-- Claude exit code: 0;
-- post-test: 3 passed;
-- diff: only `runtime_fixture/pricing.py`, with the intended minimal correction so shipping is added after the merchandise discount;
-- valid successful baseline.
+All five included runs passed the independent deterministic evaluator with `success: true` and `mandatory_compliance: true`.
 
-Observed native telemetry:
-- aggregate input tokens: 1,085;
-- cache-read input tokens: 262,353;
-- cache-creation input tokens: 13,224;
-- output tokens: 1,154;
-- tool calls: 8;
-- Claude result duration: 20,054 ms;
-- total reported cost: USD 0.1763469;
-- observed models: `claude-sonnet-5` and `claude-haiku-4-5-20251001`;
-- telemetry completeness under current required-field rubric: 0.4667.
+Success rate across included runs: **5/5 = 100%**.
 
-### B2-001-baseline-r03 — valid baseline #2
+### Frozen descriptive distribution
 
-- Initial evaluator v1 result incorrectly reported failure because `changed_paths` was empty even though the diff clearly contained only `runtime_fixture/pricing.py`.
-- Root cause: evaluator parsed the wrong token from the unified git diff header `diff --git a/<path> b/<path>`.
-- Evaluator v1.1 corrected the parser and r03 was re-evaluated from preserved artifacts; no model rerun was required.
-- Deterministic result after correction:
-  - `success: true`;
-  - `mandatory_compliance: true`;
-  - Claude exit zero;
-  - fixture failed before;
-  - tests passed after;
-  - pre/post evidence present;
-  - diff present;
-  - only `runtime_fixture/pricing.py` changed;
-  - tests untouched;
-  - intended formula present.
-- r03 is therefore valid baseline #2.
+| Metric | Mean | Median | Min | Max | Std dev | CV |
+|---|---:|---:|---:|---:|---:|---:|
+| Total cost USD | 0.19160122 | 0.19402950 | 0.17634690 | 0.20899400 | 0.01440126 | 7.52% |
+| Duration ms | 21,774.4 | 21,977 | 19,175 | 24,032 | 2,139.66 | 9.83% |
+| Fresh input tokens | 1,087.0 | 1,087 | 1,085 | 1,089 | 2.00 | 0.18% |
+| Cached-input tokens | 297,513.4 | 299,675 | 261,376 | 335,910 | 35,235.14 | 11.84% |
+| Cache-creation input tokens | 13,708.2 | 13,739 | 13,224 | 14,222 | 407.68 | 2.97% |
+| Output tokens | 1,273.8 | 1,280 | 1,154 | 1,460 | 119.59 | 9.39% |
+| Tool calls | 9.0 | 9 | 8 | 10 | 1.00 | 11.11% |
 
-Important interpretation constraints:
-- cache token counts are provider-reported processed/cache usage, not unique semantic context size;
-- context composition, instruction composition, useful state change, repeated-operation structure and some model/agent lineage fields remain UNKNOWN;
-- two successful runs are still insufficient to estimate a stable variance distribution or claim optimisation savings.
+Observed models in every valid run:
+
+- `claude-sonnet-5`
+- `claude-haiku-4-5-20251001`
+
+Native CLI telemetry completeness remains 0.4667 under the generic rubric. Missing fields remain UNKNOWN, not zero.
+
+Formal result: `experiments/B2_BASELINE_V1_RESULT.md`.
+
+## Baseline interpretation
+
+- Fresh task input is extremely stable, while cached-input processing, tool calls, duration, output and cost vary materially more.
+- This establishes runtime variance and a resource-profile signal, but does not establish causality.
+- Provider-reported cached-input tokens are processed/cache usage and must not be treated as unique semantic context size.
+- No r07 is required before the first attribution/intervention phase unless later comparison variance shows n=5 was inadequate.
+
+## Naturalistic observation lane
+
+`NAT-001` used a fresh Claude Cowork session against a GitHub clone of this repository and asked for the highest-value next experiment without modifying the repo. Its independent recommendation was to investigate context/instruction composition after the B2 baseline series. Treat this as naturalistic analytical evidence only, not controlled empirical proof.
 
 ## Current differentiation hypotheses to prove
 
@@ -115,39 +96,28 @@ Important interpretation constraints:
 7. Execution Counterfactuals can identify which resources contributed materially to success.
 8. Outcome-Conditioned Policy Learning can learn task fingerprint -> execution strategy mappings across providers and runtimes.
 
-## First benchmark tranche
-
-Concrete cases:
-- B2-001 — small bug fix: order discount;
-- B3-001 — repository research: cache efficiency vs cognitive/context efficiency;
-- B5-001 — debug/test loop: retry boundary;
-- B7-001 — multi-agent decomposable competitive-boundary research.
-
-Baseline = normal/default runtime execution with passive telemetry only.
-
-Target repetitions: five valid runs per case where economically practical, revised if observed variance justifies a different sample size.
-
 ## First empirical milestone
 
 > On at least two representative workloads, demonstrate material compute/cost or latency reduction while maintaining non-inferior parent-task quality and 100% tested mandatory-rule compliance.
 
+The frozen B2 baseline is only the first prerequisite; the thesis is not yet validated.
+
 ## Current blockers / unknowns
 
-- Need additional valid B2 repetitions to quantify natural cost/latency/token/tool variance.
-- Native CLI telemetry completeness remains 46.67% under the generic rubric; this is not itself a reason to instrument further because B2 exposes the fields needed for the initial baseline distribution.
-- Context/instruction composition is not exposed natively in the current CLI stream.
+- Context/instruction composition is not exposed natively in the currently normalized Claude CLI telemetry.
+- Tool-schema contribution, accumulated tool-result/history contribution and detailed model/agent lineage are not yet fully attributed.
 - Useful State Change and no-progress intervals remain unmeasured.
-- Whether external control-plane/instrumentation overhead erodes savings remains unknown.
+- Whether external instrumentation/control-plane overhead erodes savings remains unknown.
 - Whether customers will pay for cross-provider runtime optimisation versus provider-native/gateway capabilities remains unproven.
 
 ## Immediate next work
 
-1. Preserve r01 as invalid discovery evidence; exclude it from baseline statistics.
-2. Treat r02 and r03 as valid baseline observations.
-3. Run B2-001 baseline r04 under the exact same frozen configuration and deterministic evaluator v1.1.
-4. If valid, continue r05 without changing prompt, fixture, model selection settings, permission mode, Python version, pytest version or runner semantics.
-5. After at least four valid baseline observations are available, calculate preliminary variance; after five valid observations, decide whether the sample is sufficiently stable or more repetitions are needed.
-6. Do not add OpenTelemetry solely to increase the generic completeness percentage; add instrumentation only if required by a specific later hypothesis.
-7. After a stable B2 baseline distribution exists, begin one isolated intervention at a time rather than a combined optimiser.
+1. Keep B2 Baseline v1 frozen at r02-r06; do not run r07 by default.
+2. Execute Stage A of `experiments/B2_CONTEXT_INSTRUCTION_ATTRIBUTION_SPEC.md`: exhaust existing stream/artifact evidence before adding instrumentation.
+3. Produce an attribution-gap table covering provider/system instructions, project instructions, task prompt, tool schemas, repo/file context, tool-result/history context, internal/subagent activity and residual runtime overhead.
+4. Only if Stage A is insufficient, choose the smallest additional observation layer under `TELEMETRY_GAP_DECISION_PROTOCOL.md`.
+5. Do not add OpenTelemetry, SDK wrappers or gateway instrumentation merely to improve completeness percentage.
+6. After attribution, select exactly one isolated intervention according to measured evidence, not original list order.
+7. Repeat the intervention sufficiently to compare distributions against frozen B2 Baseline v1 while enforcing deterministic non-inferiority and 100% tested mandatory compliance.
 8. Continue competitor deep dives while runtime experiments progress.
 9. Do not build a production control plane until measured baseline/intervention evidence supports it.
