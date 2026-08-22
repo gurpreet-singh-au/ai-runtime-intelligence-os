@@ -2,7 +2,7 @@
 
 Last updated: 2026-08-22
 Phase: Phase 0B — competitive boundary + experimental proof preparation
-Status: B2 Baseline v1 frozen; Stage A attribution exhausted; Stage B native telemetry audit designed
+Status: Claude B2 Baseline v1 frozen; Stage A complete; Stage B1/B2 native OTel diagnostics complete with B-ESCALATE; Codex discovery lane next
 
 ## Current objective
 
@@ -25,7 +25,7 @@ Determine whether there is a durable commercial and technical opportunity for a 
 - Claude Code passive-observation harness is operational on Windows with benchmark-local Python 3.11.6, pytest 9.1.1 and `acceptEdits`.
 - Deterministic B2 evaluator v1.1 independently verifies task success and mandatory compliance.
 - Missing telemetry remains UNKNOWN rather than being coerced to zero.
-- Runtime-specific observations must map through provider-neutral evidence rather than becoming architecture dependencies.
+- Runtime-specific observations map through provider-neutral evidence rather than becoming architecture dependencies.
 
 ## B2 empirical baseline v1 — FROZEN
 
@@ -59,63 +59,101 @@ Success rate: **5/5 = 100%**.
 
 Formal record: `experiments/B2_BASELINE_V1_RESULT.md`.
 
-No r07 is required before the first intervention unless later comparison variance shows n=5 was inadequate.
-
 ## B2-ATTR-001 Stage A — COMPLETE
-
-Stage A exhausted existing Claude Code stream and local artifact evidence using:
-
-- `experiments/analyze_b2_attribution_stage_a.py`
-- `experiments/analyze_b2_native_usage_detail.py`
 
 Formal result: `experiments/B2_ATTRIBUTION_STAGE_A_RESULT.md`.
 
-### Important Stage A findings
+Key findings:
 
-1. **Spawned subagents are OBSERVED absent.** Every valid B2 run reports `subagent_stats.spawned = 0`, with zero requested/completed/failed subagents.
-2. The repeated Haiku usage is therefore not evidence of a spawned subagent. Its exact internal purpose remains UNKNOWN.
-3. Haiku usage is small and highly stable: approximately 1,069 input tokens, 13–14 output tokens, zero cache read/write and about USD 0.00113 per run.
-4. Most observed cost/cache processing is associated with Sonnet.
-5. Message-level usage snapshots show cache-read/context processing rising from roughly 22k early in a run to roughly 35k–36k later.
-6. Final Sonnet cache-read totals of roughly 261k–336k are consistent with repeated processing/reuse across turns, not a unique 261k–336k context at one instant.
-7. `usage.iterations` exists but is not proven to be a non-overlapping decomposition and is not summed with other usage objects.
-8. Tool trajectories and visible tool-result volumes are observable, but exact per-request retention/compaction is not.
+1. Spawned subagents are OBSERVED absent across all five valid B2 baseline runs.
+2. Secondary Haiku usage is small and highly stable.
+3. Most observed cost/cache processing is associated with Sonnet.
+4. Message-level cache-read snapshots grow from roughly 22k early to 35k–36k later.
+5. Final 261k–336k cache-read totals represent repeated processing/reuse across turns, not a unique context size.
+6. Native stream evidence cannot attribute system instructions, project instructions, tool schemas, file context, history and residual runtime overhead sufficiently.
 
-### Stage A decision
+Stage A decision: **INSUFFICIENT EVIDENCE FOR COMPOSITION ATTRIBUTION; PROCEED TO STAGE B.**
 
-**INSUFFICIENT EVIDENCE FOR COMPOSITION ATTRIBUTION.**
+## B2-ATTR-001 Stage B1 — COMPLETE
 
-Native stream evidence cannot distinguish system instructions, project instructions, task prompt, tool schemas, repository/file content, accumulated history and residual provider/runtime overhead well enough to choose an optimisation intervention.
+Formal result: `experiments/B2_ATTRIBUTION_STAGE_B1_RESULT.md`.
 
-H1/H2 remain unresolved. H3 has not been tested.
+Native OpenTelemetry was validated in the installed Claude Code 2.1.238 Windows environment through local OTLP transport and privacy-safe protobuf schema discovery.
 
-## B2-ATTR-001 Stage B — DESIGNED
+Observed native signal classes include metrics, logs and traces. Useful fields include model identity, request/session IDs, request-level input/cache/output usage, cost, duration, TTFT, trace/parent linkage, prompt-length metadata and `llm_request.context` presence.
 
-Plan: `experiments/B2_ATTRIBUTION_STAGE_B_PLAN.md`.
+This justified one diagnostic-only telemetry-enabled B2 run.
 
-Anthropic documentation confirms OpenTelemetry is a supported Claude Code monitoring mechanism, but that alone does not establish that its payload resolves prompt/context composition. Stage B therefore starts with a **native OpenTelemetry capability audit** rather than immediately modifying the benchmark harness or adding a proxy/SDK.
+## B2-ATTR-001 Stage B2 — COMPLETE
 
-Stage B sequence:
+Formal result: `experiments/B2_ATTRIBUTION_STAGE_B2_RESULT.md`.
 
-1. discover the telemetry signals actually available in the installed Claude Code version;
-2. classify useful fields as OBSERVED/DERIVED/UNAVAILABLE/UNKNOWN;
-3. if useful, run one diagnostic-only telemetry-enabled B2 capture;
-4. measure instrumentation overhead/semantic differences;
-5. only then decide whether native telemetry is sufficient or escalation to a thin wrapper is justified.
+Run: `B2-ATTR-001-otel-diagnostic-r01`
 
-Do not compare a first telemetry-enabled diagnostic run directly against frozen Baseline v1 as a savings claim.
+The diagnostic passed the independent evaluator:
 
-## Naturalistic observation lane
+- `success: true`;
+- `mandatory_compliance: true`.
 
-`NAT-001` used a fresh Claude Cowork session against a GitHub clone and independently recommended context/instruction composition attribution after the B2 baseline. Treat it as naturalistic analytical evidence only.
+### Mechanistic findings
+
+- Parent task used **9 Sonnet requests** plus **1 Haiku request**.
+- Haiku telemetry exposes `query_source = generate_session_title`; it is internal session-title generation, not a spawned task subagent.
+- Sonnet cache-read progression: 22,115 -> 31,592 -> 33,764 -> 34,695 -> 35,217 -> 35,434 -> 35,555 -> 35,703 -> 35,904.
+- Across every successive Sonnet request, the recurrence is exact:
+
+`next cache_read = previous cache_read + previous cache_creation`
+
+- This demonstrates stepwise cached-prefix carry-forward across the trajectory.
+- First Sonnet request processed input: **31,594 tokens** (22,115 cache-read + 9,477 cache-create + 2 fresh).
+- Final Sonnet request processed input: **36,096 tokens**.
+- Post-first-request growth: **4,502 tokens**.
+- First-request share of final processed input: **87.53%**.
+- Post-first growth share: **12.47%**.
+
+Interpretation: for B2, most of the final request footprint was already present at the first Sonnet request. Later tool/result/history growth is real but is not the dominant source of the final per-request footprint in this diagnostic.
+
+### Native OTel boundary
+
+`llm_request.context` was present but was only an 11-character, non-JSON string for every Sonnet request. It did not expose actual request composition.
+
+Therefore native OTel resolves request/cache mechanics but still cannot distinguish the initial large prefix among:
+
+- provider/system/runtime instructions;
+- tool schemas/tool capability surface;
+- project/repository instructions;
+- task prompt;
+- other provider/runtime material.
+
+Stage B2 decision: **B-ESCALATE.**
+
+## Current highest-value Claude question
+
+What makes up the approximately 31.6k-token first Sonnet processed input, especially the 22.1k cached prefix and 9.5k newly cached material?
+
+The next Claude measurement mechanism should be the smallest local, reversible request-inspection layer capable of reporting outbound request structure and sizes without persisting raw prompt, code, tool-result or repository content.
+
+Do not make that diagnostic mechanism a product dependency by default.
 
 ## Cross-runtime lane — Codex
 
-Codex is now useful as a separate controlled runtime/provider lane. Prepare a dedicated adapter and reuse the same B2 task semantics and independent evaluator where technically compatible.
+Plan: `experiments/CODEX_B2_CONTROLLED_BASELINE_PLAN.md`.
 
-Do not mix Codex observations into Claude B2 Baseline v1. Runtime-specific telemetry remains separate and maps into the canonical provider-neutral schema.
+The Claude attribution question no longer blocks cross-runtime evidence collection. Start Codex discovery in parallel.
 
-The Codex lane is a cross-runtime validation test of the provider-agnostic thesis, not a substitute for completing Claude Stage B.
+First Codex execution remains discovery-only. Validate:
+
+- installed CLI/runtime version;
+- current CLI command/flag surface;
+- ChatGPT authentication/credit path;
+- Windows sandbox/write behavior;
+- JSON/event capture capabilities;
+- Python/pytest environment visibility;
+- edit persistence;
+- deterministic evaluator compatibility;
+- observable usage/telemetry fields.
+
+Do not pool Codex and Claude statistics.
 
 ## Current differentiation hypotheses to prove
 
@@ -134,23 +172,12 @@ The Codex lane is a cross-runtime validation test of the provider-agnostic thesi
 
 The thesis is not yet validated.
 
-## Current blockers / unknowns
-
-- Exact request composition remains unresolved in Claude Code.
-- Native OpenTelemetry field coverage for the installed runtime has not yet been locally verified.
-- Secondary Haiku invocation purpose remains UNKNOWN.
-- Tool-schema contribution and exact conversation/tool-result retention remain unresolved.
-- Useful State Change and no-progress intervals remain unmeasured.
-- Instrumentation overhead remains unknown.
-- Cross-runtime behavior has not yet been measured with Codex.
-- Customer willingness to pay remains unproven.
-
 ## Immediate next work
 
 1. Keep Claude B2 Baseline v1 frozen at r02-r06.
-2. Execute Stage B1 native OpenTelemetry capability discovery before changing benchmark semantics.
-3. If B1 provides useful signals, create one separate diagnostic run `B2-ATTR-001-otel-diagnostic-r01`; do not treat it as a baseline/intervention run.
-4. Keep any prompt/code-bearing raw telemetry local and out of Git.
-5. Prepare a separate Codex controlled-baseline adapter in parallel, reusing canonical B2 semantics and deterministic evaluation where technically compatible.
-6. Do not select a context/instruction optimisation intervention until attribution evidence justifies one.
+2. Treat Stage B2 as B-ESCALATE; do not run more OTel probes merely for completeness.
+3. Start Codex CLI capability discovery under its separate adapter boundary.
+4. After Codex capability discovery, run exactly one Codex B2 discovery execution if the installed CLI surface is understood and safe.
+5. In parallel, design the smallest Claude outbound-request structure inspector; do not persist raw sensitive request content.
+6. Do not select a Claude optimisation intervention until initial-prefix composition is identified or a deliberate redirect is made.
 7. Do not build a production control plane yet.
