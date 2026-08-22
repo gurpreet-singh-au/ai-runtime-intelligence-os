@@ -1,0 +1,125 @@
+param(
+    [string]$ProbeId = "CODEX-B2-C1-wsl-capability-r01"
+)
+
+$ErrorActionPreference = "Stop"
+
+function Require-Command([string]$Name) {
+    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+        throw "Required command '$Name' was not found on PATH."
+    }
+}
+
+Require-Command "wsl.exe"
+Require-Command "git"
+
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$RepoRoot = (Resolve-Path (Join-Path $ScriptDir "../../..")).Path
+$ProbeRoot = Join-Path $RepoRoot "experiments/local-runs/$ProbeId"
+$Artifacts = Join-Path $ProbeRoot "artifacts"
+
+if (Test-Path $ProbeRoot) {
+    throw "Probe directory already exists: $ProbeRoot. Use a new ProbeId or archive/remove the previous local probe."
+}
+New-Item -ItemType Directory -Force -Path $Artifacts | Out-Null
+
+$StartedAt = [DateTimeOffset]::Now
+
+# Discovery only. Do not install anything and do not copy credentials/config.
+$RawDistros = & wsl.exe -l -q 2>&1
+$ListExit = $LASTEXITCODE
+$Distros = @($RawDistros | ForEach-Object { $_.ToString().Trim().Trim([char]0) } | Where-Object { $_ })
+
+$DistroReports = @()
+foreach ($Distro in $Distros) {
+    $Command = @'
+set +e
+printf 'user='; id -un 2>/dev/null
+printf 'kernel='; uname -sr 2>/dev/null
+printf 'cwd='; pwd 2>/dev/null
+if command -v codex >/dev/null 2>&1; then
+  echo 'codex_present=true'
+  printf 'codex_path='; command -v codex
+  printf 'codex_version='; codex --version 2>&1 | head -n 1
+else
+  echo 'codex_present=false'
+fi
+if command -v git >/dev/null 2>&1; then
+  echo 'git_present=true'
+  printf 'git_version='; git --version 2>&1 | head -n 1
+else
+  echo 'git_present=false'
+fi
+if command -v python3 >/dev/null 2>&1; then
+  echo 'python3_present=true'
+  printf 'python3_version='; python3 --version 2>&1 | head -n 1
+else
+  echo 'python3_present=false'
+fi
+# Existence only; never print auth/config contents.
+if [ -d "$HOME/.codex" ]; then echo 'codex_home_present=true'; else echo 'codex_home_present=false'; fi
+if [ -f "$HOME/.codex/auth.json" ]; then echo 'codex_auth_file_present=true'; else echo 'codex_auth_file_present=false'; fi
+'@
+
+    $Output = & wsl.exe -d $Distro -- bash -lc $Command 2>&1
+    $Exit = $LASTEXITCODE
+    $Lines = @($Output | ForEach-Object { $_.ToString() })
+    $Values = [ordered]@{}
+    foreach ($Line in $Lines) {
+        $Index = $Line.IndexOf('=')
+        if ($Index -gt 0) {
+            $Key = $Line.Substring(0, $Index).Trim()
+            $Value = $Line.Substring($Index + 1).Trim()
+            if ($Key) { $Values[$Key] = $Value }
+        }
+    }
+
+    $DistroReports += [ordered]@{
+        distro = $Distro
+        probe_exit_code = $Exit
+        user = $Values['user']
+        kernel = $Values['kernel']
+        codex_present = $Values['codex_present'] -eq 'true'
+        codex_path = $Values['codex_path']
+        codex_version = $Values['codex_version']
+        git_present = $Values['git_present'] -eq 'true'
+        git_version = $Values['git_version']
+        python3_present = $Values['python3_present'] -eq 'true'
+        python3_version = $Values['python3_version']
+        codex_home_present = $Values['codex_home_present'] -eq 'true'
+        codex_auth_file_present = $Values['codex_auth_file_present'] -eq 'true'
+    }
+}
+
+$EndedAt = [DateTimeOffset]::Now
+$Summary = [ordered]@{
+    probe_id = $ProbeId
+    stage = "wsl-codex-capability-discovery"
+    source_repository_commit = (git -C $RepoRoot rev-parse HEAD)
+    started_at = $StartedAt.ToString("o")
+    ended_at = $EndedAt.ToString("o")
+    duration_ms = [int64](($EndedAt - $StartedAt).TotalMilliseconds)
+    wsl_list_exit_code = $ListExit
+    distro_count = $Distros.Count
+    distros = $DistroReports
+    software_installed = $false
+    credentials_copied = $false
+    codex_agent_task_executed = $false
+    benchmark_comparison_eligible = $false
+    next_decision = $(
+        if ($ListExit -ne 0 -or $Distros.Count -eq 0) { "NO_EXISTING_WSL_PATH" }
+        elseif (@($DistroReports | Where-Object { $_.codex_present -and $_.codex_auth_file_present }).Count -gt 0) { "EXISTING_WSL_CODEX_AUTH_PATH_FOUND_FOR_BOUNDED_WRITE_PROBE" }
+        elseif (@($DistroReports | Where-Object { $_.codex_present }).Count -gt 0) { "WSL_CODEX_PRESENT_AUTH_NOT_ESTABLISHED" }
+        else { "WSL_PRESENT_CODEX_NOT_INSTALLED" }
+    )
+    note = "Read-only capability discovery. Does not install Codex, modify WSL, print auth contents, copy credentials, or execute an AI task."
+}
+
+$SummaryPath = Join-Path $Artifacts "CODEX_WSL_CAPABILITY_SUMMARY.json"
+$Summary | ConvertTo-Json -Depth 10 | Out-File -Encoding utf8 $SummaryPath
+$Summary | ConvertTo-Json -Depth 10 | Write-Host
+
+Write-Host ""
+Write-Host "WSL Codex capability discovery complete."
+Write-Host "No software was installed, no credentials were copied, and no Codex agent task was executed."
+Write-Host "Send the printed CODEX_WSL_CAPABILITY_SUMMARY.json output."
