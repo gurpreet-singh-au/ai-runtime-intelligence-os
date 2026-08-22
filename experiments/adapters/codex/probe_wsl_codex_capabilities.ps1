@@ -1,5 +1,5 @@
 param(
-    [string]$ProbeId = "CODEX-B2-C1-wsl-capability-r01"
+    [string]$ProbeId = "CODEX-B2-C1-wsl-capability-r02"
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,7 +28,16 @@ $StartedAt = [DateTimeOffset]::Now
 # Discovery only. Do not install anything and do not copy credentials/config.
 $RawDistros = & wsl.exe -l -q 2>&1
 $ListExit = $LASTEXITCODE
-$Distros = @($RawDistros | ForEach-Object { $_.ToString().Trim().Trim([char]0) } | Where-Object { $_ })
+
+# On some Windows/PowerShell combinations, wsl.exe -l -q arrives as strings with
+# embedded NUL characters (for example U\0b\0u\0n\0t\0u). Removing only a trailing
+# NUL leaves an invalid distro name and makes every subsequent `wsl -d` probe fail.
+# Strip embedded NULs across the whole line before using the distro name.
+$Distros = @(
+    $RawDistros |
+        ForEach-Object { ($_.ToString() -replace "`0", "").Trim() } |
+        Where-Object { $_ }
+)
 
 $DistroReports = @()
 foreach ($Distro in $Distros) {
@@ -63,7 +72,7 @@ if [ -f "$HOME/.codex/auth.json" ]; then echo 'codex_auth_file_present=true'; el
 
     $Output = & wsl.exe -d $Distro -- bash -lc $Command 2>&1
     $Exit = $LASTEXITCODE
-    $Lines = @($Output | ForEach-Object { $_.ToString() })
+    $Lines = @($Output | ForEach-Object { ($_.ToString() -replace "`0", "") })
     $Values = [ordered]@{}
     foreach ($Line in $Lines) {
         $Index = $Line.IndexOf('=')
@@ -79,6 +88,7 @@ if [ -f "$HOME/.codex/auth.json" ]; then echo 'codex_auth_file_present=true'; el
         probe_exit_code = $Exit
         user = $Values['user']
         kernel = $Values['kernel']
+        cwd = $Values['cwd']
         codex_present = $Values['codex_present'] -eq 'true'
         codex_path = $Values['codex_path']
         codex_version = $Values['codex_version']
@@ -92,6 +102,7 @@ if [ -f "$HOME/.codex/auth.json" ]; then echo 'codex_auth_file_present=true'; el
 }
 
 $EndedAt = [DateTimeOffset]::Now
+$SuccessfulDistroProbes = @($DistroReports | Where-Object { $_.probe_exit_code -eq 0 })
 $Summary = [ordered]@{
     probe_id = $ProbeId
     stage = "wsl-codex-capability-discovery"
@@ -101,15 +112,18 @@ $Summary = [ordered]@{
     duration_ms = [int64](($EndedAt - $StartedAt).TotalMilliseconds)
     wsl_list_exit_code = $ListExit
     distro_count = $Distros.Count
+    successful_distro_probe_count = $SuccessfulDistroProbes.Count
     distros = $DistroReports
     software_installed = $false
     credentials_copied = $false
     codex_agent_task_executed = $false
     benchmark_comparison_eligible = $false
+    previous_probe_note = "r01 discovered two WSL distro entries but distro names contained embedded NUL characters, causing invalid `wsl -d` probes. Its WSL_PRESENT_CODEX_NOT_INSTALLED decision is not accepted as evidence about Codex availability."
     next_decision = $(
         if ($ListExit -ne 0 -or $Distros.Count -eq 0) { "NO_EXISTING_WSL_PATH" }
-        elseif (@($DistroReports | Where-Object { $_.codex_present -and $_.codex_auth_file_present }).Count -gt 0) { "EXISTING_WSL_CODEX_AUTH_PATH_FOUND_FOR_BOUNDED_WRITE_PROBE" }
-        elseif (@($DistroReports | Where-Object { $_.codex_present }).Count -gt 0) { "WSL_CODEX_PRESENT_AUTH_NOT_ESTABLISHED" }
+        elseif ($SuccessfulDistroProbes.Count -eq 0) { "WSL_LISTED_BUT_DISTRO_PROBES_FAILED" }
+        elseif (@($SuccessfulDistroProbes | Where-Object { $_.codex_present -and $_.codex_auth_file_present }).Count -gt 0) { "EXISTING_WSL_CODEX_AUTH_PATH_FOUND_FOR_BOUNDED_WRITE_PROBE" }
+        elseif (@($SuccessfulDistroProbes | Where-Object { $_.codex_present }).Count -gt 0) { "WSL_CODEX_PRESENT_AUTH_NOT_ESTABLISHED" }
         else { "WSL_PRESENT_CODEX_NOT_INSTALLED" }
     )
     note = "Read-only capability discovery. Does not install Codex, modify WSL, print auth contents, copy credentials, or execute an AI task."
