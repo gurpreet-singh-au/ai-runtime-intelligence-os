@@ -1,5 +1,5 @@
 param(
-    [string]$RunId = "B2-001-codex-discovery-r02"
+    [string]$RunId = "B2-001-codex-discovery-r03"
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,11 +14,9 @@ function Resolve-CodexNativeCommand() {
     $Resolved = Get-Command codex -ErrorAction Stop
     $Source = $Resolved.Source
 
-    # npm on Windows commonly exposes both codex.ps1 and codex.cmd. Calling the
-    # PowerShell shim under ErrorActionPreference=Stop can promote node.exe stderr
-    # diagnostics into terminating PowerShell NativeCommandError records before
-    # Codex gets a chance to continue. Prefer the sibling .cmd shim for experiment
-    # execution so stderr remains ordinary captured process output.
+    # npm on Windows commonly exposes both codex.ps1 and codex.cmd. Prefer the
+    # sibling .cmd shim so the experiment invokes the native/npm launcher rather
+    # than nesting through the PowerShell shim.
     if ($Source -and $Source.EndsWith(".ps1", [System.StringComparison]::OrdinalIgnoreCase)) {
         $CmdCandidate = [System.IO.Path]::ChangeExtension($Source, ".cmd")
         if (Test-Path $CmdCandidate) {
@@ -86,7 +84,7 @@ try {
     $StartedAt = [DateTimeOffset]::Now
 
     $Metadata = [ordered]@{
-        schema_version = "0.2"
+        schema_version = "0.3"
         run_id = $RunId
         benchmark_id = "B2-001"
         lane = "CODEX-B2-C1"
@@ -108,8 +106,8 @@ try {
         user_rules_loaded = $false
         json_event_capture = $true
         benchmark_comparison_eligible = $false
-        prior_discovery = "B2-001-codex-discovery-r01 aborted before agent execution because npm codex.ps1 promoted a nonfatal models-cache stderr diagnostic into a PowerShell NativeCommandError under ErrorActionPreference=Stop."
-        known_environment_note = "Installed Codex 0.144.3 may encounter a models_cache.json compatibility warning if the shared cache was written by a newer Codex client. Upstream openai/codex issue #39291 documents this class of backward-compatibility warning and states older clients fall back to remote model fetch. This harness prefers codex.cmd so captured stderr does not itself terminate PowerShell."
+        prior_discovery = "r01/r02 aborted before benchmark completion because the known models-cache compatibility diagnostic emitted on stderr was promoted into a terminating PowerShell NativeCommandError while the harness used ErrorActionPreference=Stop."
+        known_environment_note = "Upstream openai/codex issue #39291 documents the missing-base_instructions shared models_cache.json compatibility warning and states the older client falls back to remote model fetch. This harness captures native stderr while temporarily preventing PowerShell from promoting native stderr diagnostics into terminating errors."
         note = "Discovery-only. Validates installed Codex execution, Windows workspace-write semantics, edit persistence, JSON event schema and deterministic evaluator compatibility. No dangerous-full-access fallback is permitted."
     }
     $Metadata | ConvertTo-Json -Depth 8 | Out-File -Encoding utf8 (Join-Path $Artifacts "RUN_METADATA.json")
@@ -122,8 +120,24 @@ try {
     $FinalMessagePath = Join-Path $Artifacts "codex-final-message.txt"
 
     $OriginalPath = $env:PATH
+    $OriginalErrorActionPreference = $ErrorActionPreference
+    $HadPSNativePreference = Test-Path variable:PSNativeCommandUseErrorActionPreference
+    if ($HadPSNativePreference) {
+        $OriginalPSNativePreference = $PSNativeCommandUseErrorActionPreference
+    }
     $env:PATH = (Join-Path $Venv "Scripts") + ";" + $OriginalPath
     try {
+        # The installed 0.144.3 client can emit the known shared-model-cache
+        # compatibility warning on stderr before falling back to a remote model
+        # fetch. PowerShell can represent native stderr as NativeCommandError.
+        # During this one native invocation we therefore treat stderr as captured
+        # process evidence rather than a terminating PowerShell condition. The
+        # actual Codex process exit code remains authoritative.
+        $ErrorActionPreference = "Continue"
+        if ($HadPSNativePreference) {
+            $PSNativeCommandUseErrorActionPreference = $false
+        }
+
         & $CodexCommand exec `
             --json `
             --color never `
@@ -142,6 +156,10 @@ try {
         $CodexExit = $LASTEXITCODE
     }
     finally {
+        $ErrorActionPreference = $OriginalErrorActionPreference
+        if ($HadPSNativePreference) {
+            $PSNativeCommandUseErrorActionPreference = $OriginalPSNativePreference
+        }
         $env:PATH = $OriginalPath
     }
 
