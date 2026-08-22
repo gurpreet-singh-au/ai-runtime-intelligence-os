@@ -16,105 +16,99 @@ Last updated: 2026-08-22
 10. `benchmarks/prompts/B2-001-baseline.md`
 11. `experiments/B2_BASELINE_V1_RESULT.md`
 12. `experiments/B2_CONTEXT_INSTRUCTION_ATTRIBUTION_SPEC.md`
-13. `experiments/TELEMETRY_GAP_DECISION_PROTOCOL.md`
-14. `experiments/RUN_SCHEMA.json`
-15. `experiments/analyze_b2_baselines.py`
-16. `experiments/adapters/claude_code/run_b2_baseline.ps1`
-17. `experiments/adapters/claude_code/normalize_claude_run.py`
-18. `experiments/adapters/claude_code/finalize_b2_outcome.py`
-19. `research/MARKET_LANDSCAPE.md`
-20. `research/COMPETITOR_MATRIX.md`
-21. `research/SOURCE_REGISTER.md`
+13. `experiments/B2_ATTRIBUTION_STAGE_A_RESULT.md`
+14. `experiments/B2_ATTRIBUTION_STAGE_B_PLAN.md`
+15. `experiments/CODEX_B2_CONTROLLED_BASELINE_PLAN.md`
+16. `experiments/TELEMETRY_GAP_DECISION_PROTOCOL.md`
+17. `experiments/RUN_SCHEMA.json`
+18. `experiments/analyze_b2_baselines.py`
+19. `experiments/analyze_b2_attribution_stage_a.py`
+20. `experiments/analyze_b2_native_usage_detail.py`
+21. `experiments/adapters/claude_code/run_b2_baseline.ps1`
+22. `experiments/adapters/claude_code/normalize_claude_run.py`
+23. `experiments/adapters/claude_code/finalize_b2_outcome.py`
+24. `research/MARKET_LANDSCAPE.md`
+25. `research/COMPETITOR_MATRIX.md`
+26. `research/SOURCE_REGISTER.md`
 
-Also consult the pinned central framework `gurpreet-singh-au/ai-project-framework` v1.0.0 at commit `8128f2d9b91cec1ec2e9f73833be32cbf01cfdf2` when material governance questions arise.
+Consult the pinned central framework `gurpreet-singh-au/ai-project-framework` v1.0.0 at commit `8128f2d9b91cec1ec2e9f73833be32cbf01cfdf2` for material governance questions.
 
 ## Current phase
 
 Phase 0B — competitive boundary + experimental proof preparation. Do not start production implementation.
 
-## Empirical status
+## Frozen Claude baseline
 
-B2 Baseline v1 is frozen at **five valid repetitions**:
+B2 Baseline v1 contains five valid runs: r02-r06. r01 is invalid discovery evidence only.
 
-- `B2-001-baseline-r02`
-- `B2-001-baseline-r03`
-- `B2-001-baseline-r04`
-- `B2-001-baseline-r05`
-- `B2-001-baseline-r06`
+All five valid runs passed the independent deterministic evaluator with 100% tested mandatory compliance.
 
-`B2-001-baseline-r01` remains an invalid harness/environment discovery run and is excluded from statistics.
+Frozen means:
 
-All five included runs passed the deterministic B2 evaluator with 100% tested mandatory compliance.
+- no r07 by default;
+- do not alter historical prompt/fixture/evaluator artifacts;
+- do not pool future telemetry-enabled diagnostics into the baseline;
+- compare future intervention distributions against this baseline only after measurement semantics are understood.
 
-Frozen distribution:
+## Stage A attribution result
 
-- mean cost: USD 0.19160122; CV 7.52%;
-- mean Claude duration: 21,774.4 ms; CV 9.83%;
-- mean fresh input: 1,087 tokens; CV 0.18%;
-- mean cached input: 297,513.4 tokens; CV 11.84%;
-- mean cache creation: 13,708.2 tokens; CV 2.97%;
-- mean output: 1,273.8 tokens; CV 9.39%;
-- mean tool calls: 9; CV 11.11%.
+Stage A is complete and formally recorded in `experiments/B2_ATTRIBUTION_STAGE_A_RESULT.md`.
 
-No r07 is required before the next phase unless later intervention variance shows n=5 was insufficient.
+Key findings:
 
-Formal baseline record: `experiments/B2_BASELINE_V1_RESULT.md`.
+- explicit `subagent_stats.spawned = 0` across every valid B2 baseline run;
+- zero requested/completed/failed subagents;
+- secondary Haiku usage is therefore not a spawned-subagent signal;
+- Haiku usage is small and stable; exact invocation purpose remains UNKNOWN;
+- Sonnet dominates observed cost and cache processing;
+- message-level cache-read snapshots grow from roughly 22k early to roughly 35k–36k later;
+- final 261k–336k cache-read totals represent repeated processing/reuse across turns, not a unique context size;
+- native stream evidence still cannot attribute system instructions, project instructions, tool schemas, file context, history and residual runtime overhead sufficiently.
 
-## Naturalistic observation
+Stage A decision: **INSUFFICIENT EVIDENCE FOR COMPOSITION ATTRIBUTION; PROCEED TO STAGE B.**
 
-`NAT-001` used a fresh Claude Cowork session with a GitHub clone of this repository. It independently recommended context/instruction composition attribution as the highest-value experiment after the B2 baseline. Treat NAT-001 as naturalistic analytical evidence, not controlled proof.
+## Immediate next action — Claude Stage B1
 
-## Next highest-value action
+Execute a **native OpenTelemetry capability audit** before changing the benchmark harness.
 
-Execute **Stage A** of `experiments/B2_CONTEXT_INSTRUCTION_ATTRIBUTION_SPEC.md`.
+Anthropic documentation establishes OpenTelemetry as a supported Claude Code monitoring mechanism, but do not assume it exposes request composition. Verify what the installed runtime actually emits.
 
-The question is:
+Determine whether native telemetry can expose any of:
 
-> What observable components are responsible for the approximately 298k mean provider-reported cached-input processing on B2, and which of those components are controllable without reducing task success or mandatory compliance?
+- model-request boundaries;
+- per-request model identity;
+- input/cache/output usage;
+- tool-use events;
+- session identifiers;
+- parent/child or internal-call lineage;
+- prompt/system/tool-schema size or composition;
+- context/compaction events;
+- per-request latency;
+- retry/error events.
 
-Before adding any new telemetry layer, exhaust evidence already present in:
+Classify each field OBSERVED, DERIVED, UNAVAILABLE or UNKNOWN.
 
-- `claude-stream.jsonl`;
-- `STREAM_INVENTORY.json`;
-- `normalized-run.json`;
-- `RUN_METADATA.json`;
-- assistant tool-use/tool-result events;
-- model usage summaries;
-- the frozen prompt, fixture and runner.
+Do not enable a proxy/gateway or custom SDK wrapper until the native capability audit is complete.
 
-Produce an attribution-gap table for:
+If native telemetry is useful, the first telemetry-enabled B2 run must be diagnostic-only with an ID such as `B2-ATTR-001-otel-diagnostic-r01`. Do not count it as baseline or intervention evidence.
 
-1. provider/system instructions;
-2. project/repository instructions;
-3. task prompt;
-4. exposed tool schemas;
-5. repository/file content;
-6. conversation/tool-result history;
-7. agent/subagent/internal utility activity;
-8. residual provider/runtime overhead.
+## Parallel Codex lane
 
-Classify each field as OBSERVED, DERIVED/ESTIMATED where justified, or UNKNOWN. Never turn missing evidence into zero.
+A separate plan now exists at `experiments/CODEX_B2_CONTROLLED_BASELINE_PLAN.md`.
 
-## Instrumentation decision after Stage A
+Prepare Codex under its own adapter boundary:
 
-Only if existing evidence is insufficient, use the telemetry-gap protocol to choose the smallest additional observation layer. Consider richer native output first, then native telemetry such as OpenTelemetry, then a thin SDK/wrapper, gateway/proxy instrumentation, or an alternate measurement runtime if necessary.
+`experiments/adapters/codex/`
 
-For any added layer, measure and document its own overhead and whether it changes execution semantics.
+The first Codex execution is discovery-only. Validate CLI/runtime availability, authentication/credit path, workspace permissions, sandbox behavior, test environment, edit persistence, telemetry/log formats and deterministic evaluator compatibility before freezing a Codex baseline configuration.
+
+Do not mix Codex observations with Claude B2 Baseline v1.
 
 ## Intervention rule
 
-After attribution, choose **one** isolated intervention according to the measured dominant controllable source. Possible mappings include context selection, instruction applicability compilation, tool-surface reduction, tool-result externalisation, or agent/model routing.
+No context/instruction/tool optimisation intervention is selected yet.
 
-Do not combine interventions yet.
-
-For a later B2 intervention comparison:
-
-- retain the frozen fixture and task semantics;
-- retain deterministic evaluator v1.1;
-- target five valid intervention repetitions where practical;
-- compare distributions, not one-off best runs;
-- require non-inferior deterministic task quality and 100% tested mandatory compliance;
-- do not claim savings if cost has merely moved into an unmeasured resource.
+Select exactly one isolated intervention only after Stage B identifies a plausible dominant controllable source, or after evidence redirects the project to another resource class.
 
 ## First empirical gate
 
@@ -122,12 +116,11 @@ Do not claim the project thesis is validated until at least two representative w
 
 ## Do not do yet
 
-- Do not run r07 by default.
-- Do not choose a permanent model provider or agent framework.
-- Do not make OpenRouter, Portkey, Langfuse, LangSmith or Braintrust foundational.
-- Do not build another generic tracing dashboard or model gateway.
-- Do not build an autonomous optimiser.
-- Do not add OpenTelemetry merely to increase telemetry completeness.
-- Do not optimise away mandatory safety/governance instructions.
-- Do not infer causality from trace correlation alone.
-- Do not interpret cached-input tokens as unique semantic context size.
+- Do not run Claude r07 by default.
+- Do not add OpenTelemetry merely to increase completeness percentage.
+- Do not assume OpenTelemetry exposes raw request composition until observed.
+- Do not add a gateway/proxy before native telemetry is shown insufficient.
+- Do not build an autonomous optimiser or production control plane.
+- Do not choose a permanent provider/model/runtime from B2 alone.
+- Do not equate cached-input totals with unique semantic context.
+- Do not call the secondary Haiku model a subagent without contrary lineage evidence.
