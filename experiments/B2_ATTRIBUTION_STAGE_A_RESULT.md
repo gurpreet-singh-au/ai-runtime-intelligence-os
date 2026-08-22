@@ -130,19 +130,19 @@ It successfully resolved several secondary questions — especially subagent act
 
 Proceed to Stage B under the telemetry-gap protocol.
 
-## Preferred Stage B direction
+## Stage B evidence boundary
 
-Use the smallest native observation layer capable of exposing actual request composition before introducing an SDK wrapper or gateway.
+Anthropic documentation confirms Claude Code can be monitored using OpenTelemetry. That establishes OpenTelemetry as a legitimate native observation candidate, but **does not by itself establish that the exposed telemetry contains full request composition or prompt/source-class token attribution**.
 
-Current Anthropic Claude Code monitoring documentation supports native OpenTelemetry and, when explicitly enabled, raw Anthropic Messages API request/response capture. A local diagnostic configuration should therefore be evaluated before any external proxy/gateway or custom SDK instrumentation.
+Therefore Stage B begins with a capability/overhead audit of native OpenTelemetry rather than assuming it can answer the attribution question. If native telemetry does not expose the required composition fields, escalate to the next-smallest observation mechanism under the project telemetry-gap protocol.
 
-Stage B must be treated as **diagnostic-only first** because enabling telemetry/raw-body capture can add overhead and may change runtime characteristics. Do not compare its raw resource totals directly against frozen Baseline v1 until instrumentation overhead and semantic equivalence are evaluated.
+Do not add an SDK wrapper or gateway until the native telemetry capability has been tested and documented as insufficient.
 
 ## Guardrails
 
 - Never sum overlapping message usage, final usage and iteration usage objects without proven semantics.
 - Provider-reported cache-read totals are processed/cache usage, not unique semantic context size.
 - A secondary model in `modelUsage` is not equivalent to a spawned subagent.
-- Raw request capture can contain prompts, repository content and tool data; keep diagnostic artifacts local and out of Git.
+- Any diagnostic capture that could contain prompts, repository content or tool data must remain local and out of Git unless deliberately redacted.
 - Do not add a gateway or SDK wrapper unless native Stage B telemetry proves insufficient.
 - No optimisation intervention is selected yet.
