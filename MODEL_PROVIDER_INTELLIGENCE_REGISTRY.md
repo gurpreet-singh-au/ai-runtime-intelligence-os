@@ -159,40 +159,54 @@ Model observed: `gpt-5.6-sol`
 
 Processing mode: Standard
 
-Current evidence is a matched smoke test on `CASE-482-002` only.
+Reusable signal as at 2026-09-07:
 
-Reusable signal:
-
-- 1/1 case completed successfully;
-- 100/100 weighted score;
+- seven executable synthetic legal-analysis fixtures completed;
+- 7/7 quality passes;
 - 0 deterministic hard failures;
-- 100% required-issue recall;
-- 100% required-gap recall;
-- 100% required-escalation recall;
+- 0 infrastructure errors;
+- 100% required-issue/gap/escalation recall on every case;
 - 0 prohibited-claim violations;
-- latency: 12,764 ms;
-- usage: 860 input tokens, 519 output tokens, 1,379 total tokens;
-- 226 reasoning tokens were reported within output-token details.
+- 100/100 weighted score on every case;
+- 6,071 input tokens and 2,693 output tokens across the seven cases;
+- estimated Standard-processing cost approximately US$0.07814 using the dated portfolio pricing snapshot;
+- observed mean latency approximately 7.94 seconds.
 
-Using the portfolio-observed 2026-09-07 Standard pricing snapshot of US$4.00/1M input and US$20.00/1M output, the estimated matched-case cost was approximately US$0.01382.
+Compared with the first Astra seven-case sample, Sol preserved all currently measured quality gates while reducing estimated cost by about 61% and reducing observed mean latency in that sample.
 
-Matched against the first Astra run on the same case:
+Interpretation: Sol is the leading OpenAI candidate for this bounded synthetic substantive legal-analysis benchmark, but repeatability, authoritative-source retrieval, larger evidence packs and privacy/data-control gates remain unresolved.
 
-- quality gate: tie at 100/100;
-- hard failures: tie at zero;
-- Sol estimated cost: about 46.6% lower;
-- Sol latency: about 18.2% higher;
-- Sol output-token usage: 519 versus Astra 346.
+### OpenAI Responses API — GPT-5.6 Terra
 
-Interpretation: promising cost/performance screening signal only. It is not evidence that Sol is equivalent to Astra across the full legal fixture set. The full Sol suite remains required before any routing recommendation.
+Model observed: `gpt-5.6-terra`
+
+Processing mode: Standard
+
+Initial seven-case screening signal:
+
+- 7/7 completed;
+- 6/7 quality passes;
+- 1 deterministic hard failure on the unsupported genuine-position/business-growth fixture;
+- failure code: `UNSUPPORTED_ESTABLISHED_FACT`;
+- ordinary issue/gap/escalation recall remained 100% and the weighted score remained 100/100, showing why hard failures must override aggregate scoring;
+- estimated seven-case Standard cost approximately US$0.03468 under the dated portfolio pricing snapshot;
+- observed mean latency approximately 3.90 seconds.
+
+Targeted repeatability was then performed on the same failing fixture (`CASE-482-004`) without changing the fixture, prompt, schema or scoring logic. Across four total executions:
+
+- pass: 1/4 (25%);
+- hard failure: 3/4 (75%);
+- all three failures were `UNSUPPORTED_ESTABLISHED_FACT`.
+
+Interpretation: this is a material repeatability weakness for substantive evidence-grounding. Terra is **not promoted** for substantive legal analysis where unsupported factual assertions could be treated as established. Its lower cost and latency do not offset the observed hard-failure frequency. Terra may remain a candidate for narrower, lower-risk, deterministically checked tasks after separate evaluation.
 
 ### First cross-provider signal
 
-On the current seven synthetic cases, both `gemini-3.8-flash` and `gpt-6-astra` achieved 7/7 quality passes, zero deterministic hard failures and 100/100 weighted scores on all successfully completed cases.
+On the current synthetic suite, Gemini Flash, OpenAI Astra and OpenAI Sol all achieved 7/7 quality passes on their first completed benchmark evidence, while Terra failed the substantive promotion gate because of repeated evidence-grounding hard failures.
 
-No quality winner is established by this sample. An operational difference was observed: the Gemini free-tier path encountered 429 throttling during suite attempts, while the paid OpenAI Tier 1 Astra path completed without infrastructure errors. Because the access tiers differ, this must not be promoted as proof that OpenAI is inherently more reliable.
+No universal model winner is established. Current portfolio implication for this specific legal-analysis capability: **Sol is the leading OpenAI cost/performance candidate; Astra remains a stronger-model fallback candidate; Terra should not be routed to substantive evidence-grounding without additional safeguards and new evidence.**
 
-Portfolio implication: benchmarked legal-task success can be reused as a screening signal for other projects, but project-specific evaluation remains mandatory before model selection.
+The Gemini free-tier path encountered 429 throttling during suite attempts while the paid OpenAI paths did not in these samples; because access tiers differ, this must not be promoted as proof of inherent provider reliability.
 
 ## Pricing observations — temporal
 
@@ -247,6 +261,6 @@ Do not promote the following without project-specific evidence:
 6. Add routing/reassessment rules.
 7. Track model/provider lifecycle and deprecation events.
 8. Add repeatability statistics and confidence intervals once projects generate enough repeated runs.
-9. Complete lower-cost-model benchmark ladders so routing decisions are evidence-based rather than prestige-based.
+9. Continue lower-cost-model benchmark ladders using hard-failure-aware promotion rules.
 
 This registry is evidence infrastructure, not a static model leaderboard.
