@@ -113,7 +113,7 @@ Reusable signal:
 
 Interpretation: positive synthetic capability signal only. It does not establish production legal accuracy, repeatability, authoritative-law retrieval quality, confidential-data suitability, operational reliability or provider superiority.
 
-### OpenAI Responses API
+### OpenAI Responses API — GPT-6 Astra
 
 Model observed: `gpt-6-astra`
 
@@ -152,6 +152,39 @@ Using the portfolio-observed 2026-09-07 Standard-processing pricing snapshot of 
 This is an estimate from recorded token usage and a dated pricing observation, not a provider invoice. Reverify pricing before consequential decisions.
 
 Interpretation: strong first synthetic capability signal only. It does not establish repeatability, superiority, broad legal accuracy, authoritative-source retrieval quality, confidential-data suitability, document-scale performance, production readiness or optimal model economics.
+
+### OpenAI Responses API — GPT-5.6 Sol
+
+Model observed: `gpt-5.6-sol`
+
+Processing mode: Standard
+
+Current evidence is a matched smoke test on `CASE-482-002` only.
+
+Reusable signal:
+
+- 1/1 case completed successfully;
+- 100/100 weighted score;
+- 0 deterministic hard failures;
+- 100% required-issue recall;
+- 100% required-gap recall;
+- 100% required-escalation recall;
+- 0 prohibited-claim violations;
+- latency: 12,764 ms;
+- usage: 860 input tokens, 519 output tokens, 1,379 total tokens;
+- 226 reasoning tokens were reported within output-token details.
+
+Using the portfolio-observed 2026-09-07 Standard pricing snapshot of US$4.00/1M input and US$20.00/1M output, the estimated matched-case cost was approximately US$0.01382.
+
+Matched against the first Astra run on the same case:
+
+- quality gate: tie at 100/100;
+- hard failures: tie at zero;
+- Sol estimated cost: about 46.6% lower;
+- Sol latency: about 18.2% higher;
+- Sol output-token usage: 519 versus Astra 346.
+
+Interpretation: promising cost/performance screening signal only. It is not evidence that Sol is equivalent to Astra across the full legal fixture set. The full Sol suite remains required before any routing recommendation.
 
 ### First cross-provider signal
 
@@ -214,6 +247,6 @@ Do not promote the following without project-specific evidence:
 6. Add routing/reassessment rules.
 7. Track model/provider lifecycle and deprecation events.
 8. Add repeatability statistics and confidence intervals once projects generate enough repeated runs.
-9. Add lower-cost-model benchmark results so routing decisions are evidence-based rather than prestige-based.
+9. Complete lower-cost-model benchmark ladders so routing decisions are evidence-based rather than prestige-based.
 
 This registry is evidence infrastructure, not a static model leaderboard.
