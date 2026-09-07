@@ -119,31 +119,80 @@ Model observed: `gpt-6-astra`
 
 Processing mode: Standard
 
-Current reusable signal as at 2026-09-07:
+Reusable signal as at 2026-09-07:
 
-- `CASE-482-002` completed successfully;
-- quality pass: yes;
-- deterministic hard failures: 0;
-- required-issue recall: 100%;
-- required-gap recall: 100%;
-- required-escalation recall: 100%;
-- prohibited-claim violations: 0;
-- weighted score: 100/100;
-- latency: 10,797 ms;
-- usage: 860 input tokens, 346 output tokens, 1,206 total tokens.
+- seven executable synthetic 482 migration-law cases completed successfully;
+- 7/7 quality passes;
+- 0 quality failures;
+- 0 infrastructure errors;
+- 0 deterministic hard failures;
+- 100% required-issue recall on every case;
+- 100% required-gap recall on every case;
+- 100% required-escalation recall on every case;
+- 0 prohibited-claim violations;
+- 100/100 weighted score on every case.
 
-Interpretation: one-case smoke-test signal only. The remaining project benchmark is still required before comparative conclusions.
+Observed usage across the seven cases:
 
-## Pricing observations — pending/temporal
+- 6,071 input tokens;
+- 2,800 output tokens;
+- 8,871 total tokens.
 
-The portfolio has observed current OpenAI pricing information on 2026-09-07 for GPT-6 Astra and GPT-5.6 Sol/Terra/Luna across Standard, Batch and data-residency processing modes. Because provider pricing changes, these observations must be verified against current official provider sources before a consequential cost or procurement decision.
+Observed latency:
 
-Known portfolio principle from the observation:
+- mean: 10,976 ms;
+- median: 10,805 ms;
+- range: 7,956–14,449 ms.
 
-- Standard is the current interactive baseline for the Migration Legal Intelligence benchmark;
-- Batch can be evaluated for asynchronous regression/evaluation workloads where latency is non-critical;
-- data-residency modes should be assessed separately when real client or regulated data is contemplated;
-- model + processing mode must be optimised together rather than treating model selection alone as the decision.
+Using the portfolio-observed 2026-09-07 Standard-processing pricing snapshot of US$10.00/1M input tokens and US$50.00/1M output tokens, estimated benchmark economics were:
+
+- total seven-case cost: approximately US$0.20071;
+- average estimated cost per successful case: approximately US$0.0287.
+
+This is an estimate from recorded token usage and a dated pricing observation, not a provider invoice. Reverify pricing before consequential decisions.
+
+Interpretation: strong first synthetic capability signal only. It does not establish repeatability, superiority, broad legal accuracy, authoritative-source retrieval quality, confidential-data suitability, document-scale performance, production readiness or optimal model economics.
+
+### First cross-provider signal
+
+On the current seven synthetic cases, both `gemini-3.8-flash` and `gpt-6-astra` achieved 7/7 quality passes, zero deterministic hard failures and 100/100 weighted scores on all successfully completed cases.
+
+No quality winner is established by this sample. An operational difference was observed: the Gemini free-tier path encountered 429 throttling during suite attempts, while the paid OpenAI Tier 1 Astra path completed without infrastructure errors. Because the access tiers differ, this must not be promoted as proof that OpenAI is inherently more reliable.
+
+Portfolio implication: benchmarked legal-task success can be reused as a screening signal for other projects, but project-specific evaluation remains mandatory before model selection.
+
+## Pricing observations — temporal
+
+The portfolio observed OpenAI pricing information on 2026-09-07 for GPT-6 Astra and GPT-5.6 Sol/Terra/Luna across Standard, Batch and data-residency processing modes.
+
+Current observed context:
+
+### Standard processing
+
+- GPT-6 Astra: US$10.00/1M input, US$1.00/1M cached input, US$50.00/1M output.
+- GPT-5.6 Sol: US$4.00/1M input, US$0.40/1M cached input, US$20.00/1M output.
+- GPT-5.6 Terra: US$2.00/1M input, US$0.20/1M cached input, US$12.00/1M output.
+- GPT-5.6 Luna: US$0.20/1M input, US$0.02/1M cached input, US$1.20/1M output.
+
+### Batch processing observation
+
+Observed pricing was approximately 50% below the corresponding Standard rates for these models. Batch should be evaluated for asynchronous regression tests, evidence processing and other non-interactive workloads where completion latency is acceptable.
+
+### Data-residency processing observation
+
+Observed pricing was approximately 10% above Standard for the same listed models. Residency must not be selected from price alone: the portfolio must separately verify what the provider actually guarantees, supported regions, retention/data controls, and the legal/compliance requirements of the target project.
+
+All pricing above is a dated observation and must be verified against current official provider information before consequential cost, procurement or routing decisions.
+
+## Model + processing-mode optimisation principle
+
+The portfolio should treat the optimisation target as:
+
+**model + processing mode + quality + reliability + latency + privacy/residency + cost per successful outcome**
+
+Do not automatically choose the strongest model.
+
+A plausible future routing hierarchy may use lower-cost models for routine extraction/classification, stronger models for substantive reasoning or adversarial review, and premium models only where lower-cost candidates fail the relevant evaluation gate. This remains a hypothesis until demonstrated by project-specific benchmarks.
 
 ## What must not be centralised as a universal truth
 
@@ -164,5 +213,7 @@ Do not promote the following without project-specific evidence:
 5. Add cost-per-successful-outcome calculations.
 6. Add routing/reassessment rules.
 7. Track model/provider lifecycle and deprecation events.
+8. Add repeatability statistics and confidence intervals once projects generate enough repeated runs.
+9. Add lower-cost-model benchmark results so routing decisions are evidence-based rather than prestige-based.
 
 This registry is evidence infrastructure, not a static model leaderboard.
